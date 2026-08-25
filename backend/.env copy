@@ -1,6 +1,6 @@
 APP_NAME=Laravel
 APP_ENV=local
-APP_KEY=
+APP_KEY=base64:bje2xZhv88es3scLG4+GpSLJaHuPdWBB/z+nfu76ix4=
 APP_DEBUG=true
 APP_URL=http://localhost:8000
 
@@ -21,11 +21,11 @@ LOG_DEPRECATIONS_CHANNEL=null
 LOG_LEVEL=debug
 
 DB_CONNECTION=sqlsrv
-# DB_HOST=localhost
-# DB_PORT=1433
-# DB_DATABASE=nombre_base_de_datos
-# DB_USERNAME=tu_usuario
-# DB_PASSWORD=tu_password
+DB_HOST=localhost\SQLEXPRESS
+DB_PORT=1433
+DB_DATABASE=orbe_productos
+DB_USERNAME=orbe_user
+DB_PASSWORD=Orbe2026
 
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
