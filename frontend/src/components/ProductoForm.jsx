@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 //Componente de formulario
-function ProductoForm ({onCrearProducto}){
+function ProductoForm ({onCrearProducto, onProductoCreado}){
 
     //Estado local del formulario 
     const [formData, setFormData] = useState({
@@ -62,6 +62,10 @@ function ProductoForm ({onCrearProducto}){
                 descripcion:'',
                 actvo: true,
             });
+
+            if (onProductoCreado){
+                onProductoCreado();
+            }
         }catch(error){
             //Si la peticion falla mostramos el error en consola y pantalla
             console.error('Error al crear producto: ', error);
@@ -150,10 +154,13 @@ function ProductoForm ({onCrearProducto}){
                     {/*Mostramos un mensaje de error si lo hubo*/}
                     {error && <p style={{color: "red"}}>{error}</p>}
 
-                    {/*Boton de envio*/}
-                    <button type="submit" disabled={guardando}>
-                        {guardando ? 'Guardando...' : 'Guardar Producto'}
-                    </button>
+                    <div className="d-flex gap-2">
+                        {/*Boton para guardar*/}
+                        <button type="submit" className="btn btn-primary" disabled={guardando}>
+                            {guardando ? 'Guardando...' : 'Guardar Producto'}
+                        </button>
+                    </div>
+                    
 
                 </form>
 
