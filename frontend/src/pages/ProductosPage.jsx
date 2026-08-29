@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import {obtenerProductos, crearProducto, eliminarProducto, actualizarProducto} from '../services/ProductoService';
 import ProductoTable from '../components/ProductoTable';
-import ProductoForm from "../components/ProductoForm";
-import ProductoEditModal from "../components/ProductoEditModal"
 import ProductoFormModal from "../components/ProductoFormModal";
+
 
 function ProductosPage(){
     
@@ -112,12 +111,11 @@ function ProductosPage(){
 
                 {/*Boton para mostrar o ocultar el form */}
                 <button
-                    type="button"
-                    className={`btn ${mostrarFromularioCrear ? 'btn-outline-secondary' :
-                    'btn-primary'}`}
-                    onClick={handleAbrirModalCrear}
+                type="button"
+                className="btn btn-primary"
+                onClick={handleAbrirModalCrear}
                 >
-                    {mostrarFromularioCrear ? 'Cerrar formulario' : 'AgregarProducto'}
+                Agregar producto
                 </button>
             </div>
 
