@@ -7,10 +7,10 @@ import {useEffect, useState} from 'react';
 function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
 
     //Se define el modo actual comparando si hay un producto o no.
-    const esEdcion = Boolean(producto);
+    const esEdicion = Boolean(producto);
 
     //Estado local del formulario 
-    const [formData, setFormData] = useState({
+    const estadoInicial = {
         nombre: '',
         marca: '',
         categoria:'',
@@ -18,8 +18,11 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
         stock:'',
         descripcion:'',
         activo: true,
-    });
+    };
 
+    // Estado local del formulario.
+    const [formData, setFormData] = useState(estadoInicial);
+    
     //Estado para mostrar si se esta enviando el formulario
     const [guardando, setGuardando] = useState(false);
 
@@ -32,13 +35,13 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
     useEffect(()=>{
         if(producto){
             setFormData({
-                nombre: producto.nombre || '',
-                marca: producto.marca || '',
-                categoria: producto.categoria || '',
-                precio: producto.precio || '',
-                stock: producto.stock || '',
-                descripcion: producto.descripcion || '',
-                activo: producto.activo || '',
+                nombre: producto.nombre ?? '',
+                marca: producto.marca ?? '',
+                categoria: producto.categoria ?? '',
+                precio: producto.precio ?? '',
+                stock: producto.stock ?? '',
+                descripcion: producto.descripcion ?? '',
+                activo: producto.activo ?? true,
             });
         }else{
             setFormData({
@@ -48,7 +51,7 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
                 precio:'',
                 stock:'',
                 descripcion:'',
-                actvo: true,
+                activo: true,
             });            
         }
 
@@ -61,11 +64,11 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
 
     //Maneja cambios en inputs y checkbox
     const handleChange = (e) =>{
-        const {name, value, type, cheked} = e.target;
+        const {name, value, type, checked} = e.target;
 
         setFormData({
-            ...FormData,
-            [name]: type === 'checkbox' ? cheked : value,
+            ...formData,
+            [name]: type === 'checkbox' ? checked : value,
         });
     };
 
@@ -86,14 +89,14 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
         try{
             //Si es edicion pasamos el ID
             //Si es creacion parasmos null en el id
-            await onGuardar(esEdcion ? producto.id : null, datosFormateados);
+            await onGuardar(esEdicion ? producto.id : null, datosFormateados);
 
             //Cerramos el modal cuando la operacion fue exitosa.
             onCerrar();
         }catch(error){
             console.error('Error al guardar el producto:', error);
             setError(
-                esEdcion ? 'No se pudo actualizar el producto.' : 'No se pudo crear el producto'
+                esEdicion ? 'No se pudo actualizar el producto.' : 'No se pudo crear el producto'
             );
         }finally{
             setGuardando(false);
@@ -117,7 +120,7 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
                         {/*Encabezado: el titulo cambia segun el modo*/}
                         <div className='modal-header'>
                             <h5 className='modal-title'>
-                                {esEdcion ? 'Editar producto' : 'Agregar producto'}
+                                {esEdicion ? 'Editar producto' : 'Agregar producto'}
                             </h5>
                             <button
                                 type='button'
@@ -205,13 +208,13 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
                                 {/*Pie del modal: el testo del boton cambia segun el modo*/}
                                 <div className="modal-footer px-0 pb-0">
                                     {/*Boton para Cancelar*/}
-                                    <button type='button' className="btn btn-secundary" onClick={onCerrar}>
+                                    <button type='button' className="btn btn-secondary" onClick={onCerrar}>
                                         Cancelar
                                     </button>
 
                                     {/*Boton para guardar*/}
                                     <button type="submit" className="btn btn-primary" disabled={guardando}>
-                                        {guardando ? 'Guardando...' : esEdcion ? 'Guardar Cambios' : 'Guardar producto'}
+                                        {guardando ? 'Guardando...' : esEdicion ? 'Guardar Cambios' : 'Guardar producto'}
                                     </button>
                                 </div>
                             </form>

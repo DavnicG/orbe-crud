@@ -144,7 +144,7 @@ function ProductosPage(){
                 visible={mostarModal}
                 producto={productoSelecionado}
                 onCerrar={handleCerrarModal}
-                onActualizarProducto={handleGuardarProducto}
+                onGuardar={handleGuardarProducto}
             />
             
         </main>
