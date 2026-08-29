@@ -1,5 +1,5 @@
 <?php
-
+//Conecta el codigo con la tabla productos en la BD
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;

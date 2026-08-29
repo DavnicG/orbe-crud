@@ -3,6 +3,7 @@ import {obtenerProductos, crearProducto, eliminarProducto, actualizarProducto} f
 import ProductoTable from '../components/ProductoTable';
 import ProductoForm from "../components/ProductoForm";
 import ProductoEditModal from "../components/ProductoEditModal"
+import ProductoFormModal from "../components/ProductoFormModal";
 
 function ProductosPage(){
     
@@ -15,14 +16,11 @@ function ProductosPage(){
     //Estado para capturar errores
     const[error, setError] = useState('');
 
-    //Estado que controla si el form de creacion es visible
-    const[mostrarFromularioCrear, setMostrarFormularioCrear] = useState(false);
+    //Estado del producto selecionado si es Null estamos en modo crear , si no estamos en modo eeditar
+    const [productoSelecionado, setProductoSelecionado] = useState(null);
 
-    //Estado con el producto que se esta editando
-    const[porductoEditando, setProductoEditando] = useState(null);
-
-    //Estado para mostrar u ocultar el modal de edicion
-    const[mostarModalEdicion, setMostrarModalEdicion] = useState(false);
+    //Estado para mostrar u ocultar el modal
+    const[mostarModal, setMostrarModal] = useState(false);
     
     //Esta funcion consulta los productos del backend
     useEffect(()=>{
@@ -46,42 +44,42 @@ function ProductosPage(){
         cargarProductos();
     },[]);
 
-    //Esta funcion crea un nuevo producto
-    const handleCrearProducto = async (datosProducto) => {
-
-        const respuesta = await crearProducto(datosProducto);
-
-        //Se agrega eñ nevo producto sin recargar la pag
-        setProductos ((prevProductos)=> [respuesta.data.data, ...prevProductos]);
+    //Abre el modal en modo Crear
+    const handleAbrirModalCrear = () => {
+        setProductoSelecionado(null);
+        setMostrarModal(true);
+    };
+    //Abre el modal en modo Editar
+    const handleAbrirModalEditar = (producto) => {
+        setProductoSelecionado(producto);
+        setMostrarModal(true);
     };
 
-    //Cuando el producto fue creado corrrectamente cerramos el form
-    const handleProductoCreado = () => {
-        setMostrarFormularioCrear(false);
-    }
-
-    //Abre el modal de edicion y guarda el producto
-    const handleAbrirModalEdicion =(producto) => {
-        setProductoEditando(producto);
-        setMostrarModalEdicion(true);
-    }
-
-    //Cierra el modal y limpia el producto seleccionado
-    const handleCerrarModalEdicion = () =>{
-        setMostrarModalEdicion(false);
-        setProductoEditando(null);
-    }
-
-    //Actualiza el producto
-    const handleActualizarProducto = async (id, datosProducto) =>{
-        const respuesta = await actualizarProducto(id, datosProducto);
-
-        setProductos((prevProductos) =>
-            prevProductos.map((producto)=>
-                producto.id === id ? respuesta.data.data : producto
-            )
-        );
+    //Cierra el modal y limpia elproducto seleccionado
+    const handleCerrarModal = () =>{
+        setMostrarModal(false);
+        setProductoSelecionado(null);
     };
+
+    //Funcion unica que decide si crea o actualiza el producto
+    const handleGuardarProducto = async (id, datosProducto) => {
+        if(id){
+            //Modo edicion
+            const respuesta = await actualizarProducto(id, datosProducto);
+
+            setProductos((prevProductos) =>
+                prevProductos.map((producto)=>
+                    producto.id === id ? respuesta.data.data : producto
+                ));
+        } else{
+            //Modo Creacion
+            const respuesta = await crearProducto(datosProducto);
+
+            //Se agrega eñ nevo producto sin recargar la pag
+            setProductos ((prevProductos)=> [respuesta.data.data, ...prevProductos]);
+
+        }
+    }
 
     //Esta funcion se llamara cuando el usuario pulse Eliminar
     const handleEliminarProducto = async (id) => {
@@ -117,19 +115,11 @@ function ProductosPage(){
                     type="button"
                     className={`btn ${mostrarFromularioCrear ? 'btn-outline-secondary' :
                     'btn-primary'}`}
-                    onClick={() => setMostrarFormularioCrear(!mostrarFromularioCrear)}
+                    onClick={handleAbrirModalCrear}
                 >
                     {mostrarFromularioCrear ? 'Cerrar formulario' : 'AgregarProducto'}
                 </button>
             </div>
-
-            {/*Se muestra el form y se pasa la funcion para crear un producto */}
-            {mostrarFromularioCrear && (
-                <ProductoForm 
-                    onCrearProducto={handleCrearProducto}
-                    onProductoCreado={handleProductoCreado} 
-                />
-            )}
 
             {/*Si esta cargando mostramos mensaje de carga */}
             {cargando && <p>Cargando Productos...</p>}
@@ -137,26 +127,26 @@ function ProductosPage(){
             {/*Mostramos mensajes de error */}
             {error && <div className="alert alert-danger">{error}</div>}
 
-            {/*Si ya no esta cargando, no hay error y el arreglo de productos esta vacio, lo mostramos */}
+            {/*Mensaje si no hay productos */}
             {!cargando && !error && productos.length === 0 && (
                 <div className="alert alert-warning">No hay productos registrados</div>
             )}
 
-            {/*Si no hay error, no esta cargando y hay productos se renderiza la tabla */}
+            {/*Tabla productos */}
             {!cargando && !error && productos.length > 0 && (
             <ProductoTable 
                 productos={productos}
-                onEditarProducto={handleAbrirModalEdicion}
+                onEditarProducto={handleAbrirModalEditar}
                 onEliminarProducto={handleEliminarProducto}
                 />
             )}
 
             {/*Modal de edicion */}
-            <ProductoEditModal
-                visible={mostarModalEdicion}
-                producto={porductoEditando}
-                onCerrar={handleCerrarModalEdicion}
-                onActualizarProducto={handleActualizarProducto}
+            <ProductoFormModal
+                visible={mostarModal}
+                producto={productoSelecionado}
+                onCerrar={handleCerrarModal}
+                onActualizarProducto={handleGuardarProducto}
             />
             
         </main>

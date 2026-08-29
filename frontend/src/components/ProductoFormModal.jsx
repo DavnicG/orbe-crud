@@ -1,9 +1,15 @@
 import {useEffect, useState} from 'react';
 
-//Este componente presenta el form de edicion
-function ProductoEditModal({visible, producto, onCerrar, onActualizarProducto}){
+//Este componente sirve para crear y para editar productos
+//si el producto es null -> Modo crear
+//Si el producto tiene datos -> Modo editar
 
-    //Estado local del form en edicion
+function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
+
+    //Se define el modo actual comparando si hay un producto o no.
+    const esEdcion = Boolean(producto);
+
+    //Estado local del formulario 
     const [formData, setFormData] = useState({
         nombre: '',
         marca: '',
@@ -19,14 +25,13 @@ function ProductoEditModal({visible, producto, onCerrar, onActualizarProducto}){
 
     //Estado para mostrar errores
     const [error, setError] = useState('');
-
-    //Cuando cambia el producto selecionado, llenamos el form
+    
+    //Cada vez que cambia "Produto" o "visible", iniciamos  el formulario.
+    //Si hay producto cargamod sus datos
+    //Si no hay producto, dejamos el form vacio
     useEffect(()=>{
-
         if(producto){
-
             setFormData({
-
                 nombre: producto.nombre || '',
                 marca: producto.marca || '',
                 categoria: producto.categoria || '',
@@ -35,77 +40,85 @@ function ProductoEditModal({visible, producto, onCerrar, onActualizarProducto}){
                 descripcion: producto.descripcion || '',
                 activo: producto.activo || '',
             });
+        }else{
+            setFormData({
+                nombre:'',
+                marca:'',
+                categoria:'',
+                precio:'',
+                stock:'',
+                descripcion:'',
+                actvo: true,
+            });            
         }
 
-    }, [producto]);
+        //Se limpian errores cada vez que se abre el Modal
+        setError('');
+    }, [producto, visible]);
 
-    //Si visible es false, no se renderiza
+    //Si el modal no debe mostrarse, no se renderiza
     if(!visible) return null;
 
-    //Maneja cambio de input y checkbox
-    const handleChange = (e) => {
-
-        //Extraemos propiedades del elemento que disparo el evento
+    //Maneja cambios en inputs y checkbox
+    const handleChange = (e) =>{
         const {name, value, type, cheked} = e.target;
 
-        //Se actualiza solo el campo que cambio
         setFormData({
-
-            ...formData,
+            ...FormData,
             [name]: type === 'checkbox' ? cheked : value,
         });
     };
 
-    //Maneja el envio del form editado
-    const handleSubmit = async (e) => {
-
-        //Evita que el navegador recargue la pag
+    //Maneja el envio del formulario
+    //Llama onGuardar con el id (si es edicion) o sin id(crear)
+    const handleSubmit = async (e) =>{
         e.preventDefault();
-        //Se indica el comienzo del guardado
         setGuardando(true);
-        //Se limpia cualquier error anterior
         setError('');
 
+        //Convertimos los campos numericos
+        const datosFormateados = {
+            ...formData,
+            precio : Number(formData.precio),
+            stock : Number(formData.stock),
+        };
+
         try{
-            //Llamamos la funcion del componente padre y se convierte precio y stock a #
-            await onActualizarProducto(producto.id,{
-                ...formData,
-                precio: Number(formData.precio),
-                stock: Number(formData.stock)
-            });
+            //Si es edicion pasamos el ID
+            //Si es creacion parasmos null en el id
+            await onGuardar(esEdcion ? producto.id : null, datosFormateados);
 
-            //Cerramos el modal si la edicion fue exitosa
+            //Cerramos el modal cuando la operacion fue exitosa.
             onCerrar();
-
         }catch(error){
-            //Si la peticion falla mostramos el error en consola y pantalla
-            console.error('Error al Actualizar producto: ', error);
-            setError('No se pudo Actualizar el producto');
+            console.error('Error al guardar el producto:', error);
+            setError(
+                esEdcion ? 'No se pudo actualizar el producto.' : 'No se pudo crear el producto'
+            );
         }finally{
-            //Se ejecuta siempre para indicar el fin del proceso de guardado
             setGuardando(false);
         }
     };
 
     return(
         <>
-            {/*Capa oscura detras del modal*/}
-            <div className='modal-backdrop fade show'></div>
+            {/*Fondo oscuro detras del Modal*/}
+            <div className="modal-backdrop fade show"></div>
 
             {/*Estructura principal del modal*/}
             <div
                 className='modal fade show d-block'
-                tabIndex={1}
+                tabIndex="-1"
                 role='dialog'
                 aria-modal="true"
             >
-
                 <div className='modal-dialog modal-lg'>
                     <div className='modal-content'>
-
-                        {/*Encabezado del modal*/}
+                        {/*Encabezado: el titulo cambia segun el modo*/}
                         <div className='modal-header'>
-                            <h5 className='modal-title'>Editar Producto</h5>
+                            <h5 className='modal-title'>
+                                {esEdcion ? 'Editar producto' : 'Agregar producto'}
+                            </h5>
                             <button
                                 type='button'
                                 className='btn-close'
@@ -133,7 +146,7 @@ function ProductoEditModal({visible, producto, onCerrar, onActualizarProducto}){
                                     {/*Campo Marca*/}
                                     <div className="col-md-6 mb-3">
                                         <label className='form-label'>Marca:</label>
-                                        <input type="text"
+                                            <input type="text"
                                             name="marca"
                                             className='form-control'
                                             value={formData.marca}
@@ -185,12 +198,11 @@ function ProductoEditModal({visible, producto, onCerrar, onActualizarProducto}){
                                         />
                                     </div>
 
-                                </div>
-                                
+                                </div>    
                                 {/*Mostramos un mensaje de error si lo hubo*/}
-                                {error && <p style={{color: "red"}}>{error}</p>}
+                                {error && <div className='alert alert-danger'>{error}</div>}
 
-                                {/*Pie del modal*/}
+                                {/*Pie del modal: el testo del boton cambia segun el modo*/}
                                 <div className="modal-footer px-0 pb-0">
                                     {/*Boton para Cancelar*/}
                                     <button type='button' className="btn btn-secundary" onClick={onCerrar}>
@@ -199,17 +211,16 @@ function ProductoEditModal({visible, producto, onCerrar, onActualizarProducto}){
 
                                     {/*Boton para guardar*/}
                                     <button type="submit" className="btn btn-primary" disabled={guardando}>
-                                        {guardando ? 'Guardando...' : 'Guardar Cambios'}
+                                        {guardando ? 'Guardando...' : esEdcion ? 'Guardar Cambios' : 'Guardar producto'}
                                     </button>
                                 </div>
                             </form>
-                        </div>
+                        </div>                
                     </div>
                 </div>
-
             </div>
         </>
     );
 }
 
-export default ProductoEditModal;
+export default ProductoFormModal;

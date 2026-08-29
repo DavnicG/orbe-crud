@@ -8,7 +8,7 @@ class StoreProductoRequest extends FormRequest
 {
     /**
      * Define si esta petición está autorizada.
-     * Como aún no tenemos login ni roles, devolvemos true.
+     * Como no tenemos login ni roles, devolvemos true.
      */
     public function authorize(): bool
     {
