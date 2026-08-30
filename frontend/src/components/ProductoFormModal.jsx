@@ -66,9 +66,15 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
     const handleChange = (e) =>{
         const {name, value, type, checked} = e.target;
 
+        let nuevoValor = type === 'checkbox' ? checked : value; 
+
+        if (name === 'precio' || name === 'stock'){
+            nuevoValor = nuevoValor.replace(/[eE+-]/g, '');
+        }
+
         setFormData({
             ...formData,
-            [name]: type === 'checkbox' ? checked : value,
+            [name]: nuevoValor,
         });
     };
 
@@ -100,6 +106,12 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
             );
         }finally{
             setGuardando(false);
+        }
+    };
+
+    const bloquearCaracteresNumero = (e) => {
+        if(['e', 'E', '+', '-'].includes(e.key)){
+            e.preventDefault();
         }
     };
 
@@ -173,9 +185,13 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
                                         <label className='form-label'>Precio:</label>
                                         <input type="number"
                                             name="precio"
+                                            min="0"
+                                            step="0.1"
                                             className='form-control'
                                             value={formData.precio}
                                             onChange={handleChange}
+                                            onKeyDown={bloquearCaracteresNumero}
+
                                         />
                                     </div>
 
@@ -184,9 +200,12 @@ function ProductoFormModal ({visible, producto, onCerrar, onGuardar}){
                                         <label className='form-label'>Stock:</label>
                                         <input type="number"
                                             name="stock"
+                                            min="0"
+                                            step="1"
                                             className='form-control'
                                             value={formData.stock}
                                             onChange={handleChange}
+                                            onKeyDown={bloquearCaracteresNumero}
                                         />
                                     </div>
 
