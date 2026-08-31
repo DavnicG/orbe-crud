@@ -15,6 +15,8 @@
     "@mui/material": "^9.3.1",
     "axios": "^1.19.0",
     "bootstrap": "^5.3.8",
+    "bootstrap-table": "^1.27.3",
+    "jquery": "^4.0.0",
     "react": "^19.2.8",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.8",

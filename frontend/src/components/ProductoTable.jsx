@@ -1,63 +1,131 @@
+import { useEffect, useRef } from "react";
+import $ from "../lib/jquery-global";
+import "bootstrap-table/dist/bootstrap-table.min.css";
+import "bootstrap-table/dist/bootstrap-table.min.js"
+import "bootstrap-table/dist/locale/bootstrap-table-es-MX.min.js"
+
+
+
 //Recibe el arreglo de productos y crea la tabla
 function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
 
-  return(
-    //table-responsive permite scrool horizontal en pantallas pequeñas
-    <div className="table-responsive">
-        {/* Clases Bootstrap:
-          -table : estilo base de tabla
-          -table-striped: filas con franjas
-          -table-hover: resalta al pasar el mouse
-          -align- middle: centra verticalmente el contenido
-        */}
-        <table className="table table-striped table-hover align-midle">
+  //Referencia directa a la tabla HTML  
+  const tableRef = useRef(null);
 
-          <thead className="table-dark">
-            <tr>
-              {/*Encabezados de la tabla */}
-              <th>Nombre</th>
-              <th>Marca</th>
-              <th>Categoria</th>
-              <th>Precio</th>
-              <th>Stock</th>
-              <th>Descripcion</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
+  // Referencias para guardar las funciones actuales y que los eventos del plugin
+  // siempre usen la versión más reciente sin reinicializar toda la tabla
+  const editarRef = useRef(onEditarProducto);
+  const eliminarRef = useRef(onEliminarProducto);
 
-          <tbody>
-            {/*Se recogen los productos del arreglo y se crea una fila por cada elemento */}
-              {productos.map((producto)=>(
-                <tr key={producto.id}>
-                    {/*Mostramos cada propiedad en una celda */}
-                    <td>{producto.nombre}</td>
-                    <td>{producto.marca}</td>
-                    <td>{producto.categoria}</td>
-                    <td>{producto.precio}</td>
-                    <td>{producto.stock}</td>
-                    <td>{producto.descripcion || 'Sin descripcion'}</td>
-                    <td>
-                      {/*Boton para editar*/}
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-warning me-2"
-                        onClick={()=> onEditarProducto(producto)}
-                      >Editar</button>
+  // Actualizamos las referencias cuando cambian las props
+  useEffect(() => {
+    editarRef.current = onEditarProducto;
+    eliminarRef.current = onEliminarProducto;
+  }, [onEditarProducto, onEliminarProducto]);
 
-                      {/*Boton para eliminar*/}
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
-                        onClick={()=> onEliminarProducto(producto)}
-                      >Eliminar</button>
-                    </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>  
-    </div>
+    // Este efecto inicializa Bootstrap Table una sola vez
+    useEffect(()=>{
+    //Si la tabla aun no existe en el DOM, no hacemos nada
+    if(!tableRef.current) return;
+  
+    //Guardamos la referencia jQuery de la tabla
+    const $table = $(tableRef.current);
 
-  );
-}
+    //Iniciamos Bootstrap Table con las opciones deseadas
+    $table.bootstrapTable({
+      data: [], //La tabla se crea vacia
+      search: true, //habilita la barra de busqueda
+      pagination: true, //Habilita la paginacion
+      pageSize: 5,  //Cantidad de filas por pagina
+      pageList: [5,10,20,50],  //Opciones de filas por pag
+      showRefresh: true,  //Muestra el boton para refrescar
+      showToggle: true, //Permite alternar vista tabla/tarjetas
+      showColumns: true, // Mostrar/ocultar columnas
+      striped: true,  //Filas con estilo alternativo
+      sortable: true, //Permite ordenamiento global en columnas marcadas
+      locale: "es-MX",  //idioma
+      classes: "table table-striped table-hover", //Clases de estilo Bootstrap
+      uniqueId: "id", //Campo unico de cada fila
+      columns:[
+        {
+          field: "nombre",
+          title: "Nombre",
+          sortable: true,
+        },
+                {
+          field: "marca",
+          title: "Marca",
+          sortable: true,
+        },
+                {
+          field: "categoria",
+          title: "Categoria",
+          sortable: true,
+        },
+                {
+          field: "precio",
+          title: "Precio",
+          sortable: true,
+          formatter: (value) => `$ ${value}`, //Formato basico para mostrar precio
+        },
+                {
+          field: "stock",
+          title: "Stock",
+          sortable: true,
+        },
+                {
+          field: "descripcion",
+          title: "Descripcion",
+          formatter: (value) => value || "Sin descripcion",
+        },
+                {
+          field: "acciones",
+          title: "Acciones",
+          align: "center",
+          searchable: false,
+          clickToSelect:false,
+          formatter: () =>{
+            //Este HTML lo renderiza BootstrapTable dentro de la columna
+            return `
+              <button class="btn btn-sm btn-warning btn-editar me-2">Editar</button>
+              <button class="btn btn-sm btn-danger btn-eliminar">Eliminar</button>
+            `;
+          },
+          events: {
+            //Evento para el boton Editar dentro de la fila
+            "click .btn-editar": (e,value,row) => {
+              editarRef.current(row);
+            },
+            //Evento para el boton Eliminar dentro de la fila
+            "click .btn-eliminar": (e, value, row) =>{
+              eliminarRef.current(row);
+            },
+          },
+        },
+      ],
+    });
+      //Cleanup: destruimos la tabla cuando el componente se desmonta o antes de volver a iniciarla
+      return () =>{
+        $table.bootstrapTable("destroy");
+      };
+    }, []);
+
+    //Este efecto solo recarga los datos  cuando cambia el arreglo de productos
+    useEffect(()=>{
+      if (!tableRef.current) return;
+
+      const $table = $(tableRef.current);
+
+      //Remplaza los datos actuales sin reconstruir la tabla
+      $table.bootstrapTable("load", productos);
+    }, [productos]);
+
+    return (
+      //Solo dejamos la tabla vacia: Bootstrap Table la llenara con JavaScript
+      <div className="table-responsive">
+        <table ref={tableRef}></table>
+      </div>
+    );
+  }
 
 export default ProductoTable;
