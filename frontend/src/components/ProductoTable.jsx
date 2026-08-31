@@ -48,7 +48,7 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
                       <button
                         type="button"
                         className="btn btn-sm btn-danger"
-                        onClick={()=> onEliminarProducto(producto.id)}
+                        onClick={()=> onEliminarProducto(producto)}
                       >Eliminar</button>
                     </td>
                 </tr>

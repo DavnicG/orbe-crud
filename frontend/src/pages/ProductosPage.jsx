@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {obtenerProductos, crearProducto, eliminarProducto, actualizarProducto} from '../services/ProductoService';
+import { mostrarCargando, cerrarAlerta, mostrarExito, mostrarError, confirmarEliminacion } from "../utils/alerts";
 import ProductoTable from '../components/ProductoTable';
 import ProductoFormModal from "../components/ProductoFormModal";
 
@@ -27,6 +28,9 @@ function ProductosPage(){
         const cargarProductos = async () =>{
 
             try{
+                //Mostramos  el loader  de SweetAlert2 
+                mostrarCargando('Consultando productos...');
+            
                 //Llamamos a Service
                 const respuesta = await obtenerProductos();
 
@@ -34,9 +38,11 @@ function ProductosPage(){
                 setProductos(respuesta.data);
             }catch(error){
                 console.error('Error al consultar productos:', error);
-                setError('No se pudieron cargar los productos')
+                setError('No se pudieron cargar los productos');
+                mostrarError('No se pudieron cargar los productos');    //Alerta visual dl error
             }finally{
                 setCargando(false);
+                cerrarAlerta();     // Cerramos el loader siempre, haya error o no
             }
         };
         
@@ -62,43 +68,66 @@ function ProductosPage(){
 
     //Funcion unica que decide si crea o actualiza el producto
     const handleGuardarProducto = async (id, datosProducto) => {
-        if(id){
-            //Modo edicion
-            const respuesta = await actualizarProducto(id, datosProducto);
 
-            setProductos((prevProductos) =>
-                prevProductos.map((producto)=>
-                    producto.id === id ? respuesta.data.data : producto
-                ));
-        } else{
-            //Modo Creacion
-            const respuesta = await crearProducto(datosProducto);
+        try {
+            //Mensaje distinto si es creacion o edicion 
+            mostrarCargando(id ? 'Actualizando Producto...' : 'Guardando Producto...');
+            if(id){
+                //Modo edicion
+                const respuesta = await actualizarProducto(id, datosProducto);
 
-            //Se agrega eñ nevo producto sin recargar la pag
-            setProductos ((prevProductos)=> [respuesta.data.data, ...prevProductos]);
+                setProductos((prevProductos) =>
+                    prevProductos.map((producto)=>
+                        producto.id === id ? respuesta.data.data : producto
+                    )
+                );
+            } else{
+                //Modo Creacion
+                const respuesta = await crearProducto(datosProducto);
 
+                //Se agrega eñ nevo producto sin recargar la pag
+                setProductos ((prevProductos)=> [respuesta.data.data, ...prevProductos]);
+            }
+
+            cerrarAlerta();     //Cerramos el loader
+            handleCerrarModal();
+
+            //Mensaje de exito
+            mostrarExito(id ? 'Producto actualizado correctamente' : 'Producto creado correctamente')
+        
+        
+        } catch (error) {
+            console.error('Error al guardar el producto', error);
+            cerrarAlerta();
+            mostrarError(id ? 'No se pudo actualizar el producto.' : 'No se pudo crear el producto')
         }
     }
 
     //Esta funcion se llamara cuando el usuario pulse Eliminar
-    const handleEliminarProducto = async (id) => {
+    const handleEliminarProducto = async (producto) => {
 
         //pedimos confirmacion
-        const confirmar =window.confirm('¿Seguro que deseas eliminar este producto?');
+        const confirmado = await confirmarEliminacion(producto.nombre);
 
         //Si el usuario cancela, salimos de la funcion
-        if (!confirmar) return;
+        if (!confirmado) return;
 
         //Si el usuario confirma:
         try{
+
+            mostrarCargando('Eliminando producto...');
             //Enviamos la peticion del DELETE
-            await eliminarProducto(id);
+            await eliminarProducto(producto.id);
 
             //Si el backend elimino el producto, lo quitamos 
-            setProductos((prevProductos) => prevProductos.filter((producto) => producto.id !== id));
+            setProductos((prevProductos) => prevProductos.filter((p) => p.id !== producto.id));
+
+            cerrarAlerta();
+            mostrarExito('Producto eliminado');
         }catch (error){
             console.error('Error al eliminar producto', error);
             setError ('No se pudo eliminar el producto');
+            mostrarError('No se pudo eliminar el producto');
         }
     };
 
