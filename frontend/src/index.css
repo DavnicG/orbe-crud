@@ -55,11 +55,10 @@ body {
 }
 
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  margin: 0;
+  text-align: left;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -108,4 +107,442 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+/* DASHBOARD PRODUCTOS - ESTILOS VISUALES */
+
+/* Fondo */
+body {
+  background-color: #f4f6f9;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tarjeta principal donde vive la tabla */
+.card {
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Wrapper que genera bootstrap-table */
+.bootstrap-table .fixed-table-container {
+  border: none !important;
+}
+
+.bootstrap-table .fixed-table-body {
+  height: auto !important;
+}
+
+/* Encabezados de tabla */
+.bootstrap-table .table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  vertical-align: middle;
+}
+
+/* Celdas del cuerpo */
+.bootstrap-table .table tbody td {
+  vertical-align: middle;
+  color: #495057;
+  font-size: 0.92rem;
+  padding: 1rem 0.75rem;
+}
+
+/* Resaltar nombre del producto */
+.bootstrap-table .table tbody td:first-child {
+  font-weight: 600;
+  color: #212529;
+}
+
+/* Descripción truncada para que no rompa el layout */
+.bootstrap-table .table tbody td:nth-child(6) {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #6c757d;
+}
+
+/* Precio y stock con alineación más ordenada */
+.bootstrap-table .table tbody td:nth-child(4),
+.bootstrap-table .table thead th:nth-child(4),
+.bootstrap-table .table tbody td:nth-child(5),
+.bootstrap-table .table thead th:nth-child(5) {
+  text-align: center;
+}
+
+/* Botones superiores: refresh, columnas, exportar, etc. */
+.bootstrap-table .fixed-table-toolbar .btn-group .btn,
+.bootstrap-table .fixed-table-toolbar .columns .btn,
+.bootstrap-table .fixed-table-toolbar .search .btn {
+  border-radius: 0.5rem;
+}
+
+/* Caja del buscador */
+.bootstrap-table .fixed-table-toolbar .search {
+  margin-bottom: 1rem;
+}
+
+.bootstrap-table .fixed-table-toolbar .search input {
+  border-radius: 0.5rem;
+  border: 1px solid #dee2e6;
+  padding: 0.6rem 0.9rem;
+  min-width: 280px;
+  box-shadow: none;
+}
+
+.bootstrap-table .fixed-table-toolbar .search input:focus {
+  border-color: #c6d4ff;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.08);
+}
+
+/* Paginación inferior */
+.bootstrap-table .fixed-table-pagination {
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+  margin-top: 0.75rem;
+}
+
+.bootstrap-table .pagination .page-link {
+  border-radius: 0.35rem;
+  color: #6c757d;
+  border-color: #dee2e6;
+}
+
+.bootstrap-table .pagination .page-item.active .page-link {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+/* Select de cantidad por página */
+.bootstrap-table .page-list .btn,
+.bootstrap-table .page-list .dropdown-menu {
+  border-radius: 0.5rem;
+}
+
+/* Botones de acciones: pequeño efecto hover */
+.btn-editar,
+.btn-eliminar {
+  transition: all 0.2s ease;
+}
+
+.btn-editar:hover,
+.btn-eliminar:hover {
+  transform: translateY(-1px);
+}
+
+/* Responsive: que el buscador no se vea apretado en móvil */
+@media (max-width: 576px) {
+  .bootstrap-table .fixed-table-toolbar .search input {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .bootstrap-table .table tbody td:nth-child(6) {
+    max-width: 180px;
+  }
+}
+
+/*TOOLBAR SUPERIOR - BUSCADOR Y ACCIONES*/
+
+/* Contenedor general de la barra superior del plugin */
+.bootstrap-table .fixed-table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Grupo izquierdo y derecho con mejor alineación */
+.bootstrap-table .fixed-table-toolbar .search,
+.bootstrap-table .fixed-table-toolbar .columns,
+.bootstrap-table .fixed-table-toolbar .export,
+.bootstrap-table .fixed-table-toolbar .btn-group {
+  margin: 0 !important;
+}
+
+/* Buscador estilo dashboard */
+.bootstrap-table .fixed-table-toolbar .search {
+  position: relative;
+  flex: 1 1 320px;
+  max-width: 320px;
+}
+
+.bootstrap-table .fixed-table-toolbar .search input {
+  width: 100%;
+  min-width: unset;
+  height: 44px;
+  border-radius: 0.65rem;
+  border: 1px solid #dee2e6;
+  background-color: #fff;
+  padding: 0.65rem 1rem 0.65rem 2.6rem;
+  font-size: 0.95rem;
+  color: #495057;
+  box-shadow: none;
+}
+
+/* Ícono visual de búsqueda agregado por CSS */
+.bootstrap-table .fixed-table-toolbar .search::before {
+  content: "\F52A";
+  font-family: "bootstrap-icons";
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6c757d;
+  font-size: 1rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.bootstrap-table .fixed-table-toolbar .search input::placeholder {
+  color: #6c757d;
+}
+
+.bootstrap-table .fixed-table-toolbar .search input:focus {
+  border-color: #c6d4ff;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.08);
+}
+
+/* Grupo de botones a la derecha */
+.bootstrap-table .fixed-table-toolbar .columns,
+.bootstrap-table .fixed-table-toolbar .export,
+.bootstrap-table .fixed-table-toolbar .btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* Botones cuadrados de la toolbar */
+.bootstrap-table .fixed-table-toolbar .btn {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid #dee2e6;
+  background-color: #fff;
+  color: #6c757d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  box-shadow: none;
+  transition: all 0.2s ease;
+}
+
+/* Primer botón del grupo */
+.bootstrap-table .fixed-table-toolbar .btn-group > .btn:first-child,
+.bootstrap-table .fixed-table-toolbar .keep-open .btn:first-child {
+  border-top-left-radius: 0.65rem;
+  border-bottom-left-radius: 0.65rem;
+}
+
+/* Último botón del grupo */
+.bootstrap-table .fixed-table-toolbar .btn-group > .btn:last-child,
+.bootstrap-table .fixed-table-toolbar .keep-open .btn:last-child {
+  border-top-right-radius: 0.65rem;
+  border-bottom-right-radius: 0.65rem;
+}
+
+/* Hover de botones */
+.bootstrap-table .fixed-table-toolbar .btn:hover {
+  background-color: #f8f9fa;
+  color: #495057;
+  border-color: #ced4da;
+}
+
+/* Iconos más limpios */
+.bootstrap-table .fixed-table-toolbar .btn i {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Dropdowns del plugin */
+.bootstrap-table .fixed-table-toolbar .dropdown-menu {
+  border-radius: 0.75rem;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+  padding: 0.5rem 0;
+}
+
+.bootstrap-table .fixed-table-toolbar .dropdown-item {
+  font-size: 0.9rem;
+  padding: 0.55rem 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .bootstrap-table .fixed-table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bootstrap-table .fixed-table-toolbar .search {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .bootstrap-table .fixed-table-toolbar .search input {
+    width: 100%;
+  }
+
+  .bootstrap-table .fixed-table-toolbar .columns,
+  .bootstrap-table .fixed-table-toolbar .export,
+  .bootstrap-table .fixed-table-toolbar .btn-group {
+    justify-content: flex-end;
+  }
+}
+
+/*RESPONSIVE*/
+
+/* El contenedor de la tabla debe poder desplazarse horizontalmente si hace falta */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* La tabla no debe comprimirse demasiado */
+.bootstrap-table .table {
+  min-width: 980px;
+}
+
+/* Mejor lectura general */
+.bootstrap-table .table tbody td,
+.bootstrap-table .table thead th {
+  white-space: nowrap;
+}
+
+/* Permitimos que la descripción siga truncada */
+.bootstrap-table .table tbody td:nth-child(6) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Botones de acciones un poco más refinados */
+.btn-editar,
+.btn-eliminar {
+  border-radius: 0.5rem !important;
+}
+
+/* Select y texto de paginación más ordenados */
+.bootstrap-table .fixed-table-pagination .pagination-info {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.bootstrap-table .fixed-table-pagination .page-list {
+  margin-left: 0.75rem;
+}
+
+.bootstrap-table .fixed-table-pagination .page-list .btn {
+  border-radius: 0.5rem;
+  border: 1px solid #dee2e6;
+  background-color: #fff;
+  color: #6c757d;
+}
+
+/* Ajustes tablet */
+@media (max-width: 992px) {
+  .bootstrap-table .table {
+    min-width: 900px;
+  }
+
+  .bootstrap-table .table thead th,
+  .bootstrap-table .table tbody td {
+    padding: 0.85rem 0.65rem;
+    font-size: 0.88rem;
+  }
+
+  .bootstrap-table .table tbody td:nth-child(6) {
+    max-width: 220px;
+  }
+}
+
+/* Ajustes móvil */
+@media (max-width: 768px) {
+  main .container-xl {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .card .card-body {
+    padding: 1rem;
+  }
+
+  .bootstrap-table .table {
+    min-width: 860px;
+  }
+
+  .bootstrap-table .table thead th,
+  .bootstrap-table .table tbody td {
+    padding: 0.75rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .bootstrap-table .table tbody td:nth-child(6) {
+    max-width: 180px;
+  }
+
+  .bootstrap-table .fixed-table-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .bootstrap-table .fixed-table-pagination .pagination {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .bootstrap-table .fixed-table-pagination .page-link {
+    min-width: 36px;
+    text-align: center;
+  }
+}
+
+/* Ajustes móvil pequeño */
+@media (max-width: 576px) {
+  h1,
+  .h3 {
+    font-size: 1.35rem !important;
+  }
+
+  .bootstrap-table .fixed-table-toolbar {
+    gap: 0.75rem;
+  }
+
+  .bootstrap-table .fixed-table-toolbar .search input {
+    height: 42px;
+    font-size: 0.9rem;
+  }
+
+  .bootstrap-table .fixed-table-toolbar .btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .bootstrap-table .table {
+    min-width: 820px;
+  }
+
+  .bootstrap-table .table tbody td:nth-child(6) {
+    max-width: 150px;
+  }
+
+  .btn-editar,
+  .btn-eliminar {
+    width: 34px !important;
+    height: 34px !important;
+  }
 }

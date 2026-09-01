@@ -131,51 +131,74 @@ function ProductosPage(){
         }
     };
 
-    return(
-        
-        <main className="container py-4">            {/*Contenedor principal de la pagina */}
+    return (
+        // bg-light da el fondo gris claro a toda la página, min-vh-100 lo extiende hasta el final
+        <main className="bg-light min-vh-100 py-4">
 
-            <div className="d-flex justify-content-between aling-items-center mb-4">
-                <h1 className="mb-4">Productos Tecnologicos</h1>
+            {/* Contenedor centrado con ancho máximo */}
+            <div className="container-fluid px-3 px-md-4 px-lg-4">
 
-                {/*Boton para mostrar o ocultar el form */}
+            {/* ── ENCABEZADO: título a la izquierda, botón a la derecha ── */}
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-4">
+                <div>
+                {/* Título principal de la página */}
+                <h1 className="h3 fw-bold mb-1">Productos Tecnológicos</h1>
+                {/* Subtítulo descriptivo en gris */}
+                <p className="text-muted mb-0" style={{ fontSize: "0.9rem" }}>
+                    Gestion de inventario y catálogo.
+                </p>
+                </div>
+
+                {/* Botón para abrir el modal de creación */}
                 <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary d-flex align-items-center justify-content-center gap-2"
                 onClick={handleAbrirModalCrear}
                 >
+                {/* Ícono + del botón */}
+                <i className="bi bi-plus-lg"></i>
                 Agregar producto
                 </button>
             </div>
 
-            {/*Si esta cargando mostramos mensaje de carga */}
-            {cargando && <p>Cargando Productos...</p>}
+            {/* ── TARJETA BLANCA que envuelve toda la tabla ── */}
+            {/* shadow-sm = sombra sutil, rounded = bordes redondeados */}
+            <div className="card shadow-sm rounded-3">
+                <div className="card-body p-3">
 
-            {/*Mostramos mensajes de error */}
-            {error && <div className="alert alert-danger">{error}</div>}
+                {/* Estado: cargando */}
+                {cargando && <p className="text-muted">Cargando Productos...</p>}
 
-            {/*Mensaje si no hay productos */}
-            {!cargando && !error && productos.length === 0 && (
-                <div className="alert alert-warning">No hay productos registrados</div>
-            )}
+                {/* Estado: error */}
+                {error && <div className="alert alert-danger">{error}</div>}
 
-            {/*Tabla productos */}
-            {!cargando && !error && productos.length > 0 && (
-            <ProductoTable 
-                productos={productos}
-                onEditarProducto={handleAbrirModalEditar}
-                onEliminarProducto={handleEliminarProducto}
-                />
-            )}
+                {/* Estado: sin productos */}
+                {!cargando && !error && productos.length === 0 && (
+                    <div className="alert alert-warning">No hay productos registrados</div>
+                )}
 
-            {/*Modal de edicion */}
+                {/* Tabla de productos — solo se muestra cuando hay datos */}
+                {!cargando && !error && productos.length > 0 && (
+                    <ProductoTable
+                    productos={productos}
+                    onEditarProducto={handleAbrirModalEditar}
+                    onEliminarProducto={handleEliminarProducto}
+                    />
+                )}
+
+                </div>
+            </div>
+
+            </div>
+
+            {/* Modal de creación/edición (siempre montado en el DOM) */}
             <ProductoFormModal
-                visible={mostarModal}
-                producto={productoSelecionado}
-                onCerrar={handleCerrarModal}
-                onGuardar={handleGuardarProducto}
+            visible={mostarModal}
+            producto={productoSelecionado}
+            onCerrar={handleCerrarModal}
+            onGuardar={handleGuardarProducto}
             />
-            
+
         </main>
     );
 }
