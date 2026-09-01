@@ -46,6 +46,16 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
       locale: "es-MX",  //idioma
       classes: "table table-striped table-hover", //Clases de estilo Bootstrap
       uniqueId: "id", //Campo unico de cada fila
+      iconsPrefix: "bi",
+      icons: {
+        refresh: "bi-arrow-clockwise",
+        toggleOff: "bi-toggle-off",
+        toggleOn: "bi-toggle-on",
+        columns: "bi-list-ul",
+        fullscreen: "bi-arrows-fullscreen",
+        detailOpen: "bi-plus",
+        detailClose: "bi-dash"
+      },
       columns:[
         {
           field: "nombre",

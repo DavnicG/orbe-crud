@@ -2,10 +2,12 @@
 //Conecta el codigo con la tabla productos en la BD
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Producto extends Model
 {
+    use HasFactory;
     /**
      * Campos que Laravel permite llenar de forma masiva.
      *
