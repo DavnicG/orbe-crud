@@ -22,6 +22,9 @@ function ProductosPage(){
     //Estado para mostrar u ocultar el modal
     const[mostarModal, setMostrarModal] = useState(false);
     
+    // Guarda los productos seleccionados desde la tabla
+    const[productosSeleccionados, setProductosSeleccionados] = useState([]);
+    
     //Esta funcion consulta los productos del backend
     useEffect(()=>{
 
@@ -39,7 +42,7 @@ function ProductosPage(){
             }catch(error){
                 console.error('Error al consultar productos:', error);
                 setError('No se pudieron cargar los productos');
-                mostrarError('No se pudieron cargar los productos');    //Alerta visual dl error
+                mostrarError('No se pudieron cargar los productos');    //Alerta visual del error
             }finally{
                 setCargando(false);
                 cerrarAlerta();     // Cerramos el loader siempre, haya error o no
@@ -121,6 +124,7 @@ function ProductosPage(){
 
             //Si el backend elimino el producto, lo quitamos 
             setProductos((prevProductos) => prevProductos.filter((p) => p.id !== producto.id));
+            setProductosSeleccionados((prev) => prev.filter((p) => p.id !== producto.id));
 
             cerrarAlerta();
             mostrarExito('Producto eliminado');
@@ -128,6 +132,37 @@ function ProductosPage(){
             console.error('Error al eliminar producto', error);
             setError ('No se pudo eliminar el producto');
             mostrarError('No se pudo eliminar el producto');
+        }
+    };
+
+    const handleEliminarSeleccionados = async () =>{
+        if(productosSeleccionados.length === 0) return;
+
+        const confirmado = await confirmarEliminacion(
+            `${productosSeleccionados.length} productos seleccionados`
+        );
+
+        if(!confirmado) return;
+
+        try {
+            mostrarCargando('Eliminando Productos Seleccionados...');
+            await Promise.all(
+                productosSeleccionados.map((producto) => eliminarProducto(producto.id))
+            );
+
+            const idsEliminados = productosSeleccionados.map((p) => p.id);
+            // Quitamos del listado todos los productos eliminados
+            setProductos((prevProductos) =>
+                prevProductos.filter((p)=> !idsEliminados.includes(p.id))
+            );
+            // Limpiamos la selección
+            setProductosSeleccionados([]);
+            cerrarAlerta();
+            mostrarExito("Productos eliminados correctamente");
+        }catch (error){
+            console.error("Error al eliminar productos seleccionados", error);
+            cerrarAlerta();
+            mostrarError("No se pudieron eliminar los productos seleccionados");
         }
     };
 
@@ -176,6 +211,25 @@ function ProductosPage(){
                 {!cargando && !error && productos.length === 0 && (
                     <div className="alert alert-warning">No hay productos registrados</div>
                 )}
+                
+                {/* Barra de acciones masivas */}
+                {!cargando && !error && productos.length > 0 && (
+                <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+                    <span className="text-muted small">
+                    {productosSeleccionados.length} seleccionados
+                    </span>
+
+                    <button
+                    type="button"
+                    className="btn btn-outline-danger d-inline-flex align-items-center gap-2"
+                    disabled={productosSeleccionados.length === 0}
+                    onClick={handleEliminarSeleccionados}
+                    >
+                    <i className="bi bi-trash"></i>
+                    Eliminar seleccionados
+                    </button>
+                </div>
+                )}
 
                 {/* Tabla de productos — solo se muestra cuando hay datos */}
                 {!cargando && !error && productos.length > 0 && (
@@ -183,6 +237,7 @@ function ProductosPage(){
                     productos={productos}
                     onEditarProducto={handleAbrirModalEditar}
                     onEliminarProducto={handleEliminarProducto}
+                    onSeleccionChange = {setProductosSeleccionados}
                     />
                 )}
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef} from "react";
 import "bootstrap-table/dist/bootstrap-table.min.css";
 
 /**
@@ -6,7 +6,7 @@ import "bootstrap-table/dist/bootstrap-table.min.css";
  * La lógica visual del plugin se apoya en las librerías globales
  * cargadas desde index.html para evitar conflictos entre instancias de jQuery.
  */
-function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
+function ProductoTable({ productos, onEditarProducto, onEliminarProducto, onSeleccionChange }) {
   // Referencia directa al elemento <table> del DOM
   const tableRef = useRef(null);
 
@@ -14,6 +14,7 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
   // de editar y eliminar sin reinicializar toda la tabla
   const editarRef = useRef(onEditarProducto);
   const eliminarRef = useRef(onEliminarProducto);
+  const seleccionRef = useRef(onSeleccionChange);
 
   /**
    * Cada vez que cambian las props recibidas desde el padre,
@@ -22,11 +23,12 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
   useEffect(() => {
     editarRef.current = onEditarProducto;
     eliminarRef.current = onEliminarProducto;
-  }, [onEditarProducto, onEliminarProducto]);
+    seleccionRef.current = onSeleccionChange;
+  }, [onEditarProducto, onEliminarProducto, onSeleccionChange]);
 
   /**
-   * Este efecto inicializa Bootstrap Table una sola vez.
-   * Importante: usamos window.jQuery porque bootstrap-table,
+   * Este effect inicializa Bootstrap Table una sola vez.
+   * Importante: se usa window.jQuery porque bootstrap-table,
    * tableExport y sus extensiones ya fueron cargados globalmente.
    */
   useEffect(() => {
@@ -74,6 +76,12 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
      */
     const nombreArchivoExportacion = `productos-tecnologicos-${obtenerFechaDescarga()}`;
 
+
+    const actualizarSeleccion = () => {
+      const rows = $table.bootstrapTable("getSelections");
+      seleccionRef.current?.(rows);
+    };
+
     // Inicializamos Bootstrap Table con sus opciones
     $table.bootstrapTable({
       data: [],
@@ -98,7 +106,8 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
       exportTypes: ["xlsx", "csv"],
       exportOptions: {
         fileName: nombreArchivoExportacion,
-        ignoreColumn: ["acciones"],
+        ignoreColumn: ["acciones", "state"],
+        
       },
 
       // Configuración regional
@@ -107,6 +116,9 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
       // Estilos y metadatos
       classes: "table table-hover align-middle",
       uniqueId: "id",
+      clickToSelect: true,
+      maintainMetaData: true,
+      idField: 'id',
       iconsPrefix: "bi",
       icons: {
         refresh: "bi-arrow-clockwise",
@@ -119,8 +131,19 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
         export: "bi-download",
       },
 
+      onCheck: actualizarSeleccion,
+      onUncheck: actualizarSeleccion,
+      onCheckAll: actualizarSeleccion,
+      onUncheckAll: actualizarSeleccion,
+
       // Definición de columnas
       columns: [
+        {
+          field: "state",
+          checkbox: true,
+          align: "center",
+          valign: "middle",
+        },
         {
           field: "nombre",
           title: "Nombre",
