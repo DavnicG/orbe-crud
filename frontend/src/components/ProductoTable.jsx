@@ -1,51 +1,109 @@
 import { useEffect, useRef } from "react";
-import $ from "../lib/jquery-global";
 import "bootstrap-table/dist/bootstrap-table.min.css";
-import "bootstrap-table/dist/bootstrap-table.min.js"
-import "bootstrap-table/dist/locale/bootstrap-table-es-MX.min.js"
 
-
-
-//Recibe el arreglo de productos y crea la tabla
+/**
+ * Tabla de productos usando Bootstrap Table.
+ * La lógica visual del plugin se apoya en las librerías globales
+ * cargadas desde index.html para evitar conflictos entre instancias de jQuery.
+ */
 function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
-
-  //Referencia directa a la tabla HTML  
+  // Referencia directa al elemento <table> del DOM
   const tableRef = useRef(null);
 
-  // Referencias para guardar las funciones actuales y que los eventos del plugin
-  // siempre usen la versión más reciente sin reinicializar toda la tabla
+  // Referencias para mantener siempre actualizadas las funciones
+  // de editar y eliminar sin reinicializar toda la tabla
   const editarRef = useRef(onEditarProducto);
   const eliminarRef = useRef(onEliminarProducto);
 
-  // Actualizamos las referencias cuando cambian las props
+  /**
+   * Cada vez que cambian las props recibidas desde el padre,
+   * actualizamos las referencias internas.
+   */
   useEffect(() => {
     editarRef.current = onEditarProducto;
     eliminarRef.current = onEliminarProducto;
   }, [onEditarProducto, onEliminarProducto]);
 
-    // Este efecto inicializa Bootstrap Table una sola vez
-    useEffect(()=>{
-    //Si la tabla aun no existe en el DOM, no hacemos nada
-    if(!tableRef.current) return;
-  
-    //Guardamos la referencia jQuery de la tabla
+  /**
+   * Este efecto inicializa Bootstrap Table una sola vez.
+   * Importante: usamos window.jQuery porque bootstrap-table,
+   * tableExport y sus extensiones ya fueron cargados globalmente.
+   */
+  useEffect(() => {
+    // Si la tabla todavía no existe en el DOM, no continuamos
+    if (!tableRef.current) return;
+
+    // Tomamos la misma instancia global de jQuery
+    const $ = window.jQuery;
+
+    // Validaciones defensivas para detectar problemas de carga
+    if (!$) {
+      console.error("jQuery no está disponible en window");
+      return;
+    }
+
+    if (!$.fn.bootstrapTable) {
+      console.error("bootstrapTable no está disponible en jQuery");
+      return;
+    }
+
+    if (!$.fn.tableExport) {
+      console.error("tableExport no está disponible en jQuery");
+      return;
+    }
+
+    // Convertimos la tabla HTML en objeto jQuery
     const $table = $(tableRef.current);
 
-    //Iniciamos Bootstrap Table con las opciones deseadas
+    /**
+     * Devuelve la fecha actual en formato YYYY-MM-DD
+     * para usarla en el nombre del archivo exportado.
+     */
+    const obtenerFechaDescarga = () => {
+      const hoy = new Date();
+
+      const anio = hoy.getFullYear();
+      const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+      const dia = String(hoy.getDate()).padStart(2, "0");
+
+      return `${anio}-${mes}-${dia}`;
+    };
+    /**
+     * Construimos el nombre del archivo de exportación
+     * usando la fecha actual del día en que el usuario descarga.
+     */
+    const nombreArchivoExportacion = `productos-tecnologicos-${obtenerFechaDescarga()}`;
+
+    // Inicializamos Bootstrap Table con sus opciones
     $table.bootstrapTable({
-      data: [], //La tabla se crea vacia
-      search: true, //habilita la barra de busqueda
-      pagination: true, //Habilita la paginacion
-      pageSize: 5,  //Cantidad de filas por pagina
-      pageList: [5,10,20,50],  //Opciones de filas por pag
-      showRefresh: true,  //Muestra el boton para refrescar
-      showToggle: true, //Permite alternar vista tabla/tarjetas
-      showColumns: true, // Mostrar/ocultar columnas
-      striped: true,  //Filas con estilo alternativo
-      sortable: true, //Permite ordenamiento global en columnas marcadas
-      locale: "es-MX",  //idioma
-      classes: "table table-striped table-hover", //Clases de estilo Bootstrap
-      uniqueId: "id", //Campo unico de cada fila
+      data: [],
+
+      // Funciones principales
+      search: true,
+      pagination: true,
+      pageSize: 5,
+      pageList: [5, 10, 20, 50],
+      showRefresh: true,
+      showToggle: true,
+      showColumns: true,
+      striped: true,
+      sortable: true,
+
+      // Configuración de exportación
+      showExport: true,
+      exportDataType: "all",
+      exportTypes: ["xlsx", "csv"],
+      exportOptions: {
+        fileName: nombreArchivoExportacion,
+        ignoreColumn: ["acciones"],
+      },
+
+      // Configuración regional
+      locale: "es-MX",
+
+      // Estilos y metadatos
+      classes: "table table-striped table-hover",
+      uniqueId: "id",
       iconsPrefix: "bi",
       icons: {
         refresh: "bi-arrow-clockwise",
@@ -54,88 +112,103 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto }) {
         columns: "bi-list-ul",
         fullscreen: "bi-arrows-fullscreen",
         detailOpen: "bi-plus",
-        detailClose: "bi-dash"
+        detailClose: "bi-dash",
       },
-      columns:[
+
+      // Definición de columnas
+      columns: [
         {
           field: "nombre",
           title: "Nombre",
           sortable: true,
         },
-                {
+        {
           field: "marca",
           title: "Marca",
           sortable: true,
         },
-                {
+        {
           field: "categoria",
           title: "Categoria",
           sortable: true,
         },
-                {
+        {
           field: "precio",
           title: "Precio",
           sortable: true,
-          formatter: (value) => `$ ${value}`, //Formato basico para mostrar precio
+          formatter: (value) => `$ ${value}`,
         },
-                {
+        {
           field: "stock",
           title: "Stock",
           sortable: true,
         },
-                {
+        {
           field: "descripcion",
           title: "Descripcion",
           formatter: (value) => value || "Sin descripcion",
         },
-                {
+        {
           field: "acciones",
           title: "Acciones",
           align: "center",
           searchable: false,
-          clickToSelect:false,
-          formatter: () =>{
-            //Este HTML lo renderiza BootstrapTable dentro de la columna
+          clickToSelect: false,
+          forceHide: true,
+
+          // Render del HTML de botones dentro de la celda
+          formatter: () => {
             return `
               <button class="btn btn-sm btn-warning btn-editar me-2">Editar</button>
               <button class="btn btn-sm btn-danger btn-eliminar">Eliminar</button>
             `;
           },
+
+          // Eventos asociados a los botones de cada fila
           events: {
-            //Evento para el boton Editar dentro de la fila
-            "click .btn-editar": (e,value,row) => {
+            "click .btn-editar": (e, value, row) => {
               editarRef.current(row);
             },
-            //Evento para el boton Eliminar dentro de la fila
-            "click .btn-eliminar": (e, value, row) =>{
+            "click .btn-eliminar": (e, value, row) => {
               eliminarRef.current(row);
             },
           },
         },
       ],
     });
-      //Cleanup: destruimos la tabla cuando el componente se desmonta o antes de volver a iniciarla
-      return () =>{
-        $table.bootstrapTable("destroy");
-      };
-    }, []);
 
-    //Este efecto solo recarga los datos  cuando cambia el arreglo de productos
-    useEffect(()=>{
-      if (!tableRef.current) return;
+    /**
+     * Cuando el componente se desmonta,
+     * destruimos la instancia de Bootstrap Table.
+     */
+    return () => {
+      $table.bootstrapTable("destroy");
+    };
+  }, []);
 
-      const $table = $(tableRef.current);
+  /**
+   * Este efecto solo actualiza los datos de la tabla
+   * cuando cambia el arreglo de productos.
+   * No reconstruye la tabla completa.
+   */
+  useEffect(() => {
+    if (!tableRef.current) return;
 
-      //Remplaza los datos actuales sin reconstruir la tabla
-      $table.bootstrapTable("load", productos);
-    }, [productos]);
+    const $ = window.jQuery;
+    const $table = $(tableRef.current);
 
-    return (
-      //Solo dejamos la tabla vacia: Bootstrap Table la llenara con JavaScript
-      <div className="table-responsive">
-        <table ref={tableRef}></table>
-      </div>
-    );
-  }
+    $table.bootstrapTable("load", productos);
+  }, [productos]);
+
+  /**
+   * Dejamos la tabla vacía en el JSX.
+   * Bootstrap Table se encarga de renderizar su contenido.
+   */
+  return (
+    <div className="table-responsive">
+      <table ref={tableRef}></table>
+    </div>
+  );
+}
 
 export default ProductoTable;

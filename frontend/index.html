@@ -5,7 +5,30 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+
+    <!-- jQuery global: base para Bootstrap Table y plugins legacy -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- Alias global para plugins que esperan $ además de jQuery -->
+    <script>
+      window.$ = window.jQuery;
+    </script>
+
+    <!-- Dependencias de exportación -->
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tableexport.jquery.plugin@1.22.0/tableExport.min.js"></script>
+
+    <!-- Bootstrap Table principal -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-table@1.24.0/dist/bootstrap-table.min.js"></script>
+
+    <!-- Locale: debe cargarse DESPUÉS de bootstrap-table -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-table@1.24.0/dist/locale/bootstrap-table-es-MX.min.js"></script>
+
+    <!-- Extensión de exportación: después de tableExport y bootstrap-table -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-table@1.24.0/dist/extensions/export/bootstrap-table-export.min.js"></script>
   </head>
+
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
