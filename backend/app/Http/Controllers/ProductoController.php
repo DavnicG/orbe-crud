@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Producto;
 use App\Http\Requests\StoreProductoRequest;
 use App\Http\Requests\UpdateProductoRequest;
+use App\Http\Resources\ProductoResource;
 
 class ProductoController extends Controller
 {
@@ -16,10 +17,10 @@ class ProductoController extends Controller
     public function index()
     {
         // Obtenemos todos los productos, ordenados del más reciente al más antiguo.
-        $productos = Producto::orderBy('id','desc')->get();
+        $productos = Producto::orderBy('id', 'desc')->get();
 
         //Retornamos los datos en formato JSON
-        return response()->json($productos);
+        return ProductoResource::collection($productos);
     }
 
     /**
@@ -29,19 +30,24 @@ class ProductoController extends Controller
      */
     public function store(StoreProductoRequest $request)
     {
-        // validated() devuelve solo los campos que pasaron la validación.
-        // (...) El operador spread de PHP. Descompone un arreglo y coloca sus elementos dentro de otro arreglo
+        // Obtenemos únicamente los datos que pasaron la validación.
+        $datosValidados = $request->validated();
 
-        $producto = Producto::create([
+        // Obtenemos el usuario autenticado mediante el token Bearer.
+        $user = $request->user();
 
-            ...$request -> validated(),
-            'activo' => $request->validated()['activo']??true,
-        ]);
+        // Agregamos el usuario creador desde el backend.
+        // El cliente no debe enviar user_id.
+        $datosValidados['user_id'] = $user->id;
 
-        // Retornamos el producto creado con código HTTP 201.
+        // Creamos directamente el producto.
+        // Producto::create() devuelve el modelo recién guardado.
+        $producto = Producto::create($datosValidados);
+
+        // Retornamos el producto creado.
         return response()->json([
             'message' => 'Producto creado correctamente',
-            'data' => $producto
+            'data' => new ProductoResource($producto),
         ], 201);
     }
 
@@ -53,7 +59,7 @@ class ProductoController extends Controller
     public function show(Producto $producto)
     {
         // Laravel ya buscó automáticamente el producto por su ID.
-        return response()->json($producto);
+        return new ProductoResource($producto);
     }
 
     /**
@@ -63,11 +69,17 @@ class ProductoController extends Controller
      */
     public function update(UpdateProductoRequest $request, Producto $producto)
     {
-        // Validamos los datos y actualizamos el producto.
+        // Laravel consulta ProductoPolicy::update().
+        $this->authorize('update', $producto);
+
+        // Actualizamos el producto con datos validados.
         $producto->update($request->validated());
 
+        // Recargamos el modelo actualizado.
+        $producto->refresh();
+
         //Retornamos el producto actualizado
-        return response() -> json([
+        return response()->json([
             'message' => 'Producto actualizado correctamente',
             'data' => $producto
         ]);
@@ -80,8 +92,11 @@ class ProductoController extends Controller
      */
     public function destroy(Producto $producto)
     {
+        // Laravel consulta ProductoPolicy::delete().
+        $this->authorize('delete', $producto);
+
         // Eliminamos el producto de la base de datos.
-        $producto ->delete();
+        $producto->delete();
 
         //Retornamos mensaje de exito al borrar el producto
         return response([

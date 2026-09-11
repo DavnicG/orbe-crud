@@ -196,8 +196,8 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto, onSele
 
             // Formateamos el número con estilo internacional
             const precioFormateado = precio.toLocaleString("es-MX",{
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
             });
 
             return `$ ${precioFormateado}`;

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
 
 class Producto extends Model
 {
@@ -26,14 +27,23 @@ class Producto extends Model
         'stock',
         'descripcion',
         'activo',
+        'user_id'
     ];
 
     /**
-    * Conversión automática de tipos al leer/escribir datos.
-    */
+     * Conversión automática de tipos al leer/escribir datos.
+     */
     protected $casts = [
-        'precio'=> 'decimal:2',
-        'stock'=> 'integer',
+        'precio' => 'decimal:2',
+        'stock' => 'integer',
         'activo' => 'boolean'
     ];
+
+    /**
+     * Usuario que creó el producto.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }
