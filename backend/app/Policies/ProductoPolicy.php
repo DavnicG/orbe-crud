@@ -8,20 +8,50 @@ use App\Models\User;
 class ProductoPolicy
 {
     /**
-     * Determina si el usuario puede actualizar el producto.
+     * Determina si el usuario puede ver la lista de productos.
      */
-    public function update(User $user, Producto $producto): bool
+    public function viewAny(User $user): bool
     {
-        // Puede actualizar si es el dueño del producto o si tiene rol de administrador.
-        return $user->id === $producto->user_id || $user->rol === 'admin';
+        return in_array($user->rol, ['admin', 'editor', 'viewer'], true);
     }
 
     /**
-     * Determina si el usuario puede eliminar el producto.
+     * Determina si el usuario puede ver un producto específico.
+     */
+    public function view(User $user, Producto $producto): bool
+    {
+        return in_array($user->rol, ['admin', 'editor', 'viewer'], true);
+    }
+
+    /**
+     * Determina si el usuario puede crear productos.
+     */
+    public function create(User $user): bool
+    {
+        return in_array($user->rol, ['admin', 'editor'], true);
+    }
+
+    /**
+     * Determina si el usuario puede actualizar un producto.
+     */
+    public function update(User $user, Producto $producto): bool
+    {
+        return $user->rol === 'admin'
+            || (
+                $user->rol === 'editor'
+                && (int) $user->id === (int) $producto->user_id
+            );
+    }
+
+    /**
+     * Determina si el usuario puede eliminar un producto.
      */
     public function delete(User $user, Producto $producto): bool
     {
-        // Puede eliminar si es el dueño del producto o si tiene rol de administrador.
-        return $user->id === $producto->user_id || $user->rol === 'admin';
+        return $user->rol === 'admin'
+            || (
+                $user->rol === 'editor'
+                && (int) $user->id === (int) $producto->user_id
+            );
     }
 }

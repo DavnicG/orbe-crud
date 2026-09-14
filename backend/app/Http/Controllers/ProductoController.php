@@ -16,6 +16,8 @@ class ProductoController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', Producto::class);
+
         // Obtenemos todos los productos, ordenados del más reciente al más antiguo.
         $productos = Producto::orderBy('id', 'desc')->get();
 
@@ -30,6 +32,9 @@ class ProductoController extends Controller
      */
     public function store(StoreProductoRequest $request)
     {
+        //Verifica la capacidad create de ProductoPolicy.
+        $this -> authorize('create', Producto::class);
+
         // Obtenemos únicamente los datos que pasaron la validación.
         $datosValidados = $request->validated();
 
@@ -58,6 +63,8 @@ class ProductoController extends Controller
      */
     public function show(Producto $producto)
     {
+        $this->authorize('view', $producto);
+
         // Laravel ya buscó automáticamente el producto por su ID.
         return new ProductoResource($producto);
     }

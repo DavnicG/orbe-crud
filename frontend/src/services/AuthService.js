@@ -3,7 +3,7 @@ import api from '../api/axiosClient';
 //Este archivo trae las funciones que hablan con la API de autenticacion
 
 //Registrar nuevo usuario
-export const registrarUusario = async (datosUsuario) => {
+export const registrarUsario = async (datosUsuario) => {
     return await api.post('/register', datosUsuario);
 };
 

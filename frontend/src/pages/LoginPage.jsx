@@ -74,7 +74,7 @@ function LoginPage (){
 
     return(
         //Contenedor centrado vertical y horizontalmente.
-        <main className="bg-light min-vh-100 d-flex aling-items-center justify-content-center">
+        <main className="bg-light min-vh-100 d-flex align-items-center justify-content-center">
             <div className="card shadow-sm" style={{width: '100%', maxWidth:'400px'}}>
                 <div className="card-body p-4">
                     <h1 className="card-title mb-4 text-center h4">Iniciar sesion</h1>

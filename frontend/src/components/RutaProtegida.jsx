@@ -11,7 +11,7 @@ function RutaProtegida({children}){
     //Mientras se verifica si hay sesion no mostramos nada
     if(cargandoSesion){
         return(
-            <div className="d-flex justify-content-center aling items-center min-vh-100">
+            <div className="d-flex justify-content-center align items-center min-vh-100">
                 <div className="spinner-border text-primary" role="status">
                     <span className="visually-hidden">Cargando...</span>
                 </div>

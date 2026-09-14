@@ -29,6 +29,12 @@ function ProductosPage(){
 
     // Obtenemos el usuario autenticado y la función para cerrar sesión localmente.
     const { usuario, cerrarSesionLocal } = useAuth();
+
+    const puedeCrearProducto =
+        usuario?.rol === 'admin' || usuario?.rol === 'editor';
+
+    const puedeGestionarProductos =
+        usuario?.rol === 'admin' || usuario?.rol === 'editor';
     
     //Esta funcion consulta los productos del backend
     useEffect(()=>{
@@ -214,9 +220,11 @@ function ProductosPage(){
                         </span>
                     )}
 
-                    <button className="btn btn-primary" onClick={handleAbrirModalCrear}>
-                        <i className="bi bi-plus-lg"></i> Agregar producto
-                    </button>
+                    {puedeCrearProducto && (
+                        <button className="btn btn-primary" onClick={handleAbrirModalCrear}>
+                            <i className="bi bi-plus-lg"></i> Agregar producto
+                        </button>
+                    )}
 
                     {/* Botón para cerrar sesión */}
                     <button
@@ -254,16 +262,17 @@ function ProductosPage(){
                     <span className="text-muted small">
                     {productosSeleccionados.length} seleccionados
                     </span>
-
-                    <button
-                    type="button"
-                    className="btn btn-outline-danger d-inline-flex align-items-center gap-2"
-                    disabled={productosSeleccionados.length === 0}
-                    onClick={handleEliminarSeleccionados}
-                    >
-                    <i className="bi bi-trash"></i>
-                    Eliminar seleccionados
-                    </button>
+                    {puedeGestionarProductos && (
+                        <button
+                        type="button"
+                        className="btn btn-outline-danger d-inline-flex align-items-center gap-2"
+                        disabled={productosSeleccionados.length === 0}
+                        onClick={handleEliminarSeleccionados}
+                        >
+                        <i className="bi bi-trash"></i>
+                        Eliminar seleccionados
+                        </button>
+                    )}
                 </div>
                 )}
 
@@ -271,6 +280,7 @@ function ProductosPage(){
                 {!cargando && !error && productos.length > 0 && (
                     <ProductoTable
                     productos={productos}
+                    usuarioActual={usuario}
                     onEditarProducto={handleAbrirModalEditar}
                     onEliminarProducto={handleEliminarProducto}
                     onSeleccionChange = {setProductosSeleccionados}

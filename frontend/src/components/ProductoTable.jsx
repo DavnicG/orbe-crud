@@ -6,7 +6,7 @@ import "bootstrap-table/dist/bootstrap-table.min.css";
  * La lógica visual del plugin se apoya en las librerías globales
  * cargadas desde index.html para evitar conflictos entre instancias de jQuery.
  */
-function ProductoTable({ productos, onEditarProducto, onEliminarProducto, onSeleccionChange }) {
+function ProductoTable({ productos, usuarioActual, onEditarProducto, onEliminarProducto, onSeleccionChange }) {
   // Referencia directa al elemento <table> del DOM
   const tableRef = useRef(null);
 
@@ -15,6 +15,7 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto, onSele
   const editarRef = useRef(onEditarProducto);
   const eliminarRef = useRef(onEliminarProducto);
   const seleccionRef = useRef(onSeleccionChange);
+  const usuarioActualRef = useRef(usuarioActual);
 
   /**
    * Cada vez que cambian las props recibidas desde el padre,
@@ -24,7 +25,8 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto, onSele
     editarRef.current = onEditarProducto;
     eliminarRef.current = onEliminarProducto;
     seleccionRef.current = onSeleccionChange;
-  }, [onEditarProducto, onEliminarProducto, onSeleccionChange]);
+    usuarioActualRef.current = usuarioActual;
+  }, [onEditarProducto, onEliminarProducto, onSeleccionChange, usuarioActual]);
 
   /**
    * Este effect inicializa Bootstrap Table una sola vez.
@@ -265,7 +267,23 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto, onSele
           forceHide: true,
 
           // Render del HTML de botones dentro de la celda
-          formatter: () => {
+          formatter: (value, row ) => {
+          // Verificamos si el usuario actual puede editar/eliminar este producto.
+          const usuario = usuarioActualRef.current;
+        
+          // Misma regla que ProductoPolicy en el backend:
+          // dueño del producto O administrador.
+          const puedeGestionar =
+            usuario?.rol === 'admin' ||
+            (
+                usuario?.rol === 'editor' &&
+                Number(usuario.id) === Number(row.user_id)
+            );
+
+          //Si tiene permiso, no mostramos ningun boton 
+          if (!puedeGestionar){
+            return '<span class="text-muted small">Sin permiso</span>';
+          }
             return `
               <div class="d-flex justify-content-center gap-2">
                 <button
@@ -325,7 +343,7 @@ function ProductoTable({ productos, onEditarProducto, onEliminarProducto, onSele
     const $table = $(tableRef.current);
 
     $table.bootstrapTable("load", productos);
-  }, [productos]);
+  }, [productos, usuarioActual]);
 
   /**
    * Dejamos la tabla vacía en el JSX.
