@@ -3,6 +3,8 @@ import {obtenerProductos, crearProducto, eliminarProducto, actualizarProducto} f
 import { mostrarCargando, cerrarAlerta, mostrarExito, mostrarError, confirmarEliminacion } from "../utils/alerts";
 import ProductoTable from '../components/ProductoTable';
 import ProductoFormModal from "../components/ProductoFormModal";
+import {useAuth} from "../context/AuthContext";
+import { cerrarSesion } from "../services/AuthService";
 
 
 function ProductosPage(){
@@ -24,6 +26,9 @@ function ProductosPage(){
     
     // Guarda los productos seleccionados desde la tabla
     const[productosSeleccionados, setProductosSeleccionados] = useState([]);
+
+    // Obtenemos el usuario autenticado y la función para cerrar sesión localmente.
+    const { usuario, cerrarSesionLocal } = useAuth();
     
     //Esta funcion consulta los productos del backend
     useEffect(()=>{
@@ -38,7 +43,7 @@ function ProductosPage(){
                 const respuesta = await obtenerProductos();
 
                 //Axios guarda el JSON de Laravel en data
-                setProductos(respuesta.data);
+                setProductos(respuesta.data.data);
             }catch(error){
                 console.error('Error al consultar productos:', error);
                 setError('No se pudieron cargar los productos');
@@ -163,8 +168,22 @@ function ProductosPage(){
             console.error("Error al eliminar productos seleccionados", error);
             cerrarAlerta();
             mostrarError("No se pudieron eliminar los productos seleccionados");
-        }
+        } 
     };
+
+    // Se ejecuta cuando el usuario hace clic en "Cerrar sesión"
+    const handleCerrarSesion = async () => {
+        try{
+            // Le avisamos a Laravel que revoque el token actual.
+            await cerrarSesion();
+        }catch(error){
+        console.error('Error al cerrar sesión en el servidor:', error);
+        }finally{
+        // Limpiamos localStorage y el estado del contexto.
+        // Esto hace que RutaProtegida redirija automáticamente a /login.
+        cerrarSesionLocal();
+        }
+    };  
 
     return (
         // bg-light da el fondo gris claro a toda la página, min-vh-100 lo extiende hasta el final
@@ -184,16 +203,33 @@ function ProductosPage(){
                 </p>
                 </div>
 
-                {/* Botón para abrir el modal de creación */}
-                <button
-                type="button"
-                className="btn btn-primary d-flex align-items-center justify-content-center gap-2"
-                onClick={handleAbrirModalCrear}
-                >
-                {/* Ícono + del botón */}
-                <i className="bi bi-plus-lg"></i>
-                Agregar producto
-                </button>
+                {/* usuario + logout + Botón para abrir el modal de creación*/}
+                <div className="d-flex align-items-center gap-3">
+
+                    {/* Mostramos el nombre del usuario autenticado, si existe */}
+                    {usuario && (
+                        <span className="text-muted small d-none d-md-inline">
+                            <i className="bi bi-person-circle me-1"></i>
+                            {usuario.name} <span className="text-capitalize">({usuario.rol})</span>
+                        </span>
+                    )}
+
+                    <button className="btn btn-primary" onClick={handleAbrirModalCrear}>
+                        <i className="bi bi-plus-lg"></i> Agregar producto
+                    </button>
+
+                    {/* Botón para cerrar sesión */}
+                    <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={handleCerrarSesion}
+                        title="Cerrar sesión"
+                    >
+                        <i className="bi bi-box-arrow-right"></i>
+                    </button>
+
+                </div>
+
             </div>
 
             {/* ── TARJETA BLANCA que envuelve toda la tabla ── */}

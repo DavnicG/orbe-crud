@@ -23,7 +23,7 @@ class ProductoResource extends JsonResource
             'activo' => $this -> activo,
             'user_id' => $this -> user_id,
             'created_at' => $this -> created_at,
-            'updated_ad' => $this -> updated_ad,
+            'updated_at' => $this -> updated_at,
         ];
     }
 }
