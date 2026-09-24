@@ -31,7 +31,7 @@ api.interceptors.request.use((config) => {
 
 //Intercerptor de respuestas
 api.interceptors.response.use(
-  //Si la respuesta ex exitosa retornamos
+  //Si la respuesta es exitosa retornamos
     (response) => response,
 
   //Si la respuesta falla revisamos el error
