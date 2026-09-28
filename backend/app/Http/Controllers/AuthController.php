@@ -13,6 +13,8 @@ use App\Http\Requests\LoginRequest;
 use Illuminate\Http\Request;
 // Auth nos ayuda a intentar autenticar al usuario con email y password.
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 
 class AuthController extends Controller
@@ -57,47 +59,84 @@ class AuthController extends Controller
         ], 201);
     }
 
-    /**
-     * Iniciar sesión.
-     *
-     * Este método:
-     * 1. Recibe un LoginRequest ya validado.
-     * 2. Intenta autenticar con Auth::attempt().
-     * 3. Si las credenciales son correctas, genera token.
-     * 4. Si no, devuelve error 401.
-     */
+/**
+ * Iniciar sesión.
+ *
+ * Este método:
+ * 1. Recibe un LoginRequest ya validado (email y password).
+ * 2. Extrae el sAMAccountName a partir del email recibido.
+ * 3. Intenta hacer bind contra LDAP (Active Directory) con ese usuario
+ *    y la contraseña enviada. Si el bind falla, las credenciales son incorrectas.
+ * 4. Si el bind es exitoso, consulta el directorio para obtener el correo
+ *    real y el nombre completo del usuario desde LDAP.
+ * 5. Busca el usuario en la base local por ese correo; si no existe,
+ *    lo crea con rol por defecto (el rol se administra localmente, no en LDAP).
+ * 6. Genera un token Sanctum para el usuario y lo retorna junto con sus datos.
+ * 7. Si algo falla en cualquier punto (bind, usuario no encontrado, sin correo),
+ *    devuelve el código HTTP correspondiente (401 o 500).
+ */
     public function login(LoginRequest $request)
     {
         //Obtenemos solo los datos basicos
         $datosValidos = $request->validated();
 
-        //Intentamos autenticar usando email y password
-        if (!Auth::attempt($datosValidos)) {
-            // Si las credenciales no son correctas, devolvemos respuesta no autorizada.
-            return response()->json([
-                'message' => 'Credenciales incorrectas',
-            ], 401);
+        // Armamos el usuario en formato CORP\usuario para el bind LDAP.
+        // El campo 'email' del formulario en realidad se usa como sAMAccountName aquí.
+        $samAccountName = $datosValidos['username'];
+        $ldapUsername = 'CORP\\' . $samAccountName;
+
+        $connection = new \LdapRecord\Connection([
+            'hosts' => [env('LDAP_HOST')],
+            'port' => env('LDAP_PORT', 389),
+            'base_dn' => env('LDAP_BASE_DN'),
+            'username' => $ldapUsername,
+            'password' => $datosValidos['password'],
+        ]);
+
+        try{
+
+            $connection -> connect();
+        }catch(\LdapRecord\Auth\BindException $e){
+            return response() -> json ([
+                'message' => 'Credenciales incorrectas'
+            ],401);
         }
 
-        // Si el login fue exitoso, obtenemos el usuario autenticado.
-        $user = Auth::user();
+        // Si el bind fue exitoso, buscamos los datos reales del usuario en el directorio.
+        $ldapUser = $connection -> query() -> where ('sAMAccountName', '=', $samAccountName) -> first();
 
-        // Verificamos que realmente sea una instancia del modelo User.
-        // Esto además ayuda al editor a reconocer createToken().
-        if (!$user instanceof User) {
+        if(!$ldapUser){
+            return response() -> json ([
+                'message' => 'Usuario no encontrado en el directorio',
+            ],401);
+        }
+
+        $correoldap = $ldapUser['mail'][0] ?? null;
+        $nombreldap = $ldapUser['displayname'][0] ?? $samAccountName;
+
+        if(!$correoldap){
             return response()->json([
-                'message' => 'No se pudo obtener el usuario autenticado',
+                'message' => 'El usuario no tiene correo configurado en el directorio',
             ], 500);
         }
 
-        // Generamos un nuevo token para esta sesión.
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // Buscamos si ya existe localmente, o lo creamos con rol por defecto.
+        $user = User::firstOrCreate(
+            ['email' => $correoldap],
+            [
+                'name' => $nombreldap,
+                'password' => bcrypt(Str::random(32)), // no se usa para login, LDAP ya validó
+                'rol' => 'viewer', // rol por defecto para usuarios nuevos vía LDAP
+            ]
+        );
 
-        // Retornamos los datos del usuario y su token.
+        $token = $user -> createToken('auth_token') -> plainTextToken;
+
         return response()->json([
             'message' => 'Inicio de sesion correcto',
             'user' => $user,
             'token' => $token,
+            'token_type' => 'Bearer',
         ]);
     }
 

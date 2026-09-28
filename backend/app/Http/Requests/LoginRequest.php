@@ -23,7 +23,7 @@ class LoginRequest extends FormRequest
     {
         return [
             // El email es obligatorio y debe tener formato válido.
-            'email' => 'required|email',
+            'username' => 'required|string',
             // La contraseña es obligatoria.
             'password' => 'required|string',
         ];

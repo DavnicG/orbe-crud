@@ -7,7 +7,7 @@ function LoginPage (){
 
     //Estado local del formulario de login
     const [formData, setFormData] = useState({
-        email: '',
+        username: '',
         password: '',
     });
 
@@ -63,7 +63,7 @@ function LoginPage (){
 
             //Si laravle respondio 401
             if (error.response?.status === 401){
-                setError('Correo o contraseña incorrectos.');
+                setError('Usuario o contraseña incorrectos.');
             }else{
                 setError('No se pudo iniciar sesion. Intenta de nuevo');
             }
@@ -82,15 +82,15 @@ function LoginPage (){
                     <form onSubmit={handleSubmit}>
                         {/*Campo email*/}
                         <div className="mb-3">
-                            <label htmlFor="email" className="form-label">
-                                Correo elecronico
+                            <label htmlFor="username" className="form-label">
+                                Usuario de dominio
                             </label>
                             <input 
-                                type="email"
-                                id="email"
-                                name="email"
+                                type="text"
+                                id="username"
+                                name="username"
                                 className="form-control"
-                                value={formData.email}
+                                value={formData.username}
                                 onChange={handleChange}
                                 required
                                 autoFocus 
