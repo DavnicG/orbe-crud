@@ -189,6 +189,25 @@ function UsuariosPage() {
             return;
         }
 
+    /**
+     * Devuelve la fecha actual en formato YYYY-MM-DD
+     * para usarla en el nombre del archivo exportado.
+     */
+    const obtenerFechaDescarga = () => {
+        const hoy = new Date();
+
+        const anio = hoy.getFullYear();
+        const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+        const dia = String(hoy.getDate()).padStart(2, "0");
+
+        return `${anio}-${mes}-${dia}`;
+    };
+    /**
+     * Construimos el nombre del archivo de exportación
+     * usando la fecha actual del día en que el usuario descarga.
+     */
+    const nombreArchivoExportacion = `Usuarios-${obtenerFechaDescarga()}`;
+
         // Verificamos que React ya haya montado la etiqueta table.
         if (!tableRef.current) {
             return;
@@ -228,6 +247,11 @@ function UsuariosPage() {
 
             // Formatos permitidos al exportar.
             exportTypes: ["csv", "txt"],
+            exportOptions: {
+                fileName: nombreArchivoExportacion,
+                ignoreColumn: ["acciones"],
+        
+            },
 
             // Definimos las columnas de la tabla.
             columns: [
