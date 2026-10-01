@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {obtenerProductos, crearProducto, eliminarProducto, actualizarProducto} from '../services/ProductoService';
 import { mostrarCargando, cerrarAlerta, mostrarExito, mostrarError, confirmarEliminacion } from "../utils/alerts";
 import ProductoTable from '../components/ProductoTable';
@@ -8,6 +9,9 @@ import { cerrarSesion } from "../services/AuthService";
 
 
 function ProductosPage(){
+    
+    // Creamos la función navigate para redirigir a otras rutas desde eventos.
+    const navigate = useNavigate();
     
     //Estado donde se guardan los productos traidos de Laravel
     const [productos, setProductos] = useState([]);
@@ -223,6 +227,16 @@ function ProductosPage(){
                     {puedeCrearProducto && (
                         <button className="btn btn-primary" onClick={handleAbrirModalCrear}>
                             <i className="bi bi-plus-lg"></i> Agregar producto
+                        </button>
+                    )}
+
+                    {/* Botón para ir a gestión de usuarios (solo visible para admin) */}
+                    {usuario?.rol === 'admin' && (
+                        <button
+                            className="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+                            onClick={() => navigate('/usuarios')}
+                        >
+                            <i className="bi bi-people-fill"></i> Gestionar usuarios
                         </button>
                     )}
 
