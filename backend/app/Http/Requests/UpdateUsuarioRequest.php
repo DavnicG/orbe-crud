@@ -30,7 +30,7 @@ class UpdateUsuarioRequest extends FormRequest{
                 'unique:users,username,' . $usuarioId,
             ],
             'email' => 'sometimes|required|email|unique:users,email,'.$usuarioId,
-            'password' => 'sometimes|required|string|max:8',
+            'password' => 'sometimes|required|string|min:8',
             'rol' => 'sometimes|required|in:admin,editor,viewer',
             'activo' => 'sometimes|required|boolean',
         ];

@@ -19,7 +19,7 @@ class UsuarioResource extends JsonResource{
             'rol' => $this->rol,
             'activo' => $this->activo ?? true,
             'created_at' => $this->created_at,
-            'update_at' => $this->update_at,
+            'updated_at' => $this->updated_at,
 
         ];
     }

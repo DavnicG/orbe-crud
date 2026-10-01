@@ -51,7 +51,7 @@ class UsuarioController extends Controller
     $usuario = User::create($datosValidados);
 
         return response() ->json([
-            'message' => 'Uusario creado correctamente',
+            'message' => 'Usuario creado correctamente',
             'data' => new UsuarioResource($usuario),
         ],201);
     }
@@ -68,8 +68,47 @@ class UsuarioController extends Controller
 
         $datosValidados = $request -> validated();
 
-        //Si se envia una contraseña, la encriptamos
-        if(isset($datosValidados['password'])){
+        if($usuario->tipo_autenticacion === 'ldap'){
+            $errores = [];
+
+            foreach (self::camposProtegidos as $campo){
+                if(! array_key_exists($campo, $datosValidados)){
+                    continue;
+                }
+
+                //La contraseña no aplica a LDAP, el resto solo se rechaza si cambia
+                $intentaCambiar = $campo === 'password'
+                    ? filled($datosValidados[$campo])
+                    : $datosValidados[$campo] !== $usuario -> {$campo};
+
+                if($intentaCambiar){
+                    $errores[$campo] = ['Este datos lo administra el Directorio Activo y no se puede modificar'];
+                }
+            }
+
+            if (! empty($errores)){
+                return response() ->json([
+                    'message' => 'No se pueden modificar los datos de un usuario LDAP',
+                    'errors' => $errores,
+                ], 422);
+            }
+
+            //Solo se conservan los campos admnistrables desde la aplicacion
+            $datosValidados = array_intersect_key($datosValidados, array_flip(['rol', 'activo']));
+        }
+
+        //Un admin no puede quitarse su propio acceso ni su rol.
+        if($request -> user()->id === $usuario->id){
+            if(($datosValidados['activo'] ?? true) === false
+                || (isset($datosValidados['rol']) && $datosValidados['rol'] !== 'admin')){
+                    return response() ->json([
+                        'message' => 'No puedes quitarte tu propio acceso o rol de administrador',
+                    ], 422);
+                }
+        }
+
+        //Si se envia una contraseña(Solo local), la encriptamos, si no se conserva la actual
+        if(! empty($datosValidados['password'])){
             $datosValidados['password'] = Hash::make($datosValidados['password']);
         } else {
             //No se envia contraseña, mantenemos la existente
@@ -80,7 +119,7 @@ class UsuarioController extends Controller
         $usuario -> refresh();
 
         return response() ->json([
-            'message' => 'Uusario actualizado correctamente',
+            'message' => 'Usuario actualizado correctamente',
             'data' => new UsuarioResource($usuario),
         ]);
     }
@@ -88,12 +127,13 @@ class UsuarioController extends Controller
      * Eliminar usuario
      */
     public function destroy(User $usuario){
+        //La policy rechaza LDAP y la auto-Eliminacion
         $this ->authorize('delete', $usuario);
 
         $usuario-> delete();
 
         return response() ->json([
-            'message' => 'Usario eliminado correctamente',
+            'message' => 'Usuario eliminado correctamente',
         ]);
     }
 }

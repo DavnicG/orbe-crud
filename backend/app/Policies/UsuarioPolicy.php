@@ -51,6 +51,16 @@ class UsuarioPolicy
     public function delete(User $currentUser, User $targetUser): bool
     {
         // Solo los administradores pueden eliminar usuarios.
-        return $currentUser->rol === 'admin';
+        if($currentUser->rol !== 'admin'){
+            return false;
+        }
+
+        //Los usuarios LDAP se gestionan en el directorio activo
+        if($targetUser ->tipo_autenticacion === 'ldap'){
+            return false;
+        }
+
+        //Un admin no se puede eliminar a si mismo
+        return $currentUser->id !== $targetUser->id;
     }
 }
