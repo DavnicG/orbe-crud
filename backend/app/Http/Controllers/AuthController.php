@@ -1,5 +1,5 @@
 <?php
-
+//Revision login local y usuarios inactivos
 namespace App\Http\Controllers;
 
 // Importamos el modelo User porque vamos a crear usuarios
