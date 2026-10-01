@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UsuarioController;
 
 // ===== RUTAS PÚBLICAS =====
 // Estas no requieren token.
@@ -23,4 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //Protegemos todo el CRUD de productos
     Route::apiResource('productos', ProductoController::class);
+
+    //Mantenimiento de usuario
+    Route::apiResource('usuarios', UsuarioController::class);
 });
