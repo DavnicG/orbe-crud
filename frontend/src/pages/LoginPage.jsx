@@ -40,6 +40,8 @@ function LoginPage (){
         //Evita que el navegador recargue lapagina
         e.preventDefault();
 
+        //Evitamos  multiples envios mientras se procesa
+        if(enviando) return;
         setEnviando(true);
         setError('');
 
@@ -57,15 +59,18 @@ function LoginPage (){
             iniciarSesionLocal(respuesta.data.user);
 
             //Redirigimos a la pagina de productos
-            navigate('/productos');
-        }catch(error){
-            console.error('Erro al iniciar sesion:', error);
+            navigate("/productos", { replace: true });
+        }catch(err){
+            console.error('Error al iniciar sesion: ', err);
 
-            //Si laravle respondio 401
-            if (error.response?.status === 401){
-                setError('Usuario o contraseña incorrectos.');
-            }else{
-                setError('No se pudo iniciar sesion. Intenta de nuevo');
+            // Mensaje específico del backend.
+            const mensajeBackend = err.response?.data?.message;
+
+            // Si el backend envió un mensaje, lo usamos.
+            if (mensajeBackend) {
+                setError(mensajeBackend);
+            } else {
+                setError("No se pudo iniciar sesión. Intenta de nuevo.");
             }
         }finally{
             setEnviando(false);
@@ -114,7 +119,7 @@ function LoginPage (){
 
                         {/*Mostramos el mensaje de error si lo hubo*/}
                         {error && (
-                            <div className="alert alert-danger py-2" role="alert">{error}</div>
+                            <div className="alert alert-danger mt-3" role="alert">{error}</div>
                         )}
 
                         {/*Boton de envio*/}

@@ -2,164 +2,148 @@
 
 namespace App\Http\Controllers;
 
-// Importamos el modelo User porque vamos a crear usuarios
-// y también consultar usuarios existentes para login.
-use App\Models\User;
-// Importamos los Form Requests personalizados.
-// Estos se encargan de validar los datos antes de entrar al método.
-use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\LoginRequest;
-// Request nos permite leer y validar los datos enviados por el cliente.
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-// Auth nos ayuda a intentar autenticar al usuario con email y password.
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log;
-
+use LdapRecord\Auth\BindException;
+use LdapRecord\Connection;
+use LdapRecord\LdapRecordException;
 
 class AuthController extends Controller
 {
     /**
-     * Registrar un nuevo usuario.
+     * Iniciar sesión.
      *
-     * Este método:
-     * 1. Recibe los datos ya validados por RegisterRequest.
-     * 2. Crea el usuario en la base de datos.
-     * 3. Genera un token de acceso con Sanctum.
-     * 4. Retorna el usuario y el token en formato JSON.
+     * 1. Si el username pertenece a un usuario LOCAL, validamos con Hash::check.
+     * 2. En cualquier otro caso, validamos contra LDAP (Active Directory).
+     * 3. En ambos casos se bloquea a los usuarios inactivos antes de crear el token.
      */
-    public function register(RegisterRequest $request)
+    public function login(LoginRequest $request): JsonResponse
     {
-
-        // validated() devuelve únicamente los datos que pasaron la validación.
         $datosValidos = $request->validated();
+        $username = $datosValidos['username'];
 
-        // Creamos el usuario en la base de datos.
-        $user = User::create([
-            // Guardamos el nombre validado.
-            'name' => $datosValidos['name'],
-            // Guardamos el email validado.
-            'email' => $datosValidos['email'],
-            // La contraseña se encripta antes de guardarse.
-            'password' => $datosValidos['password'],
-            // Guardamos el rol validado.
-            'rol' => $datosValidos['rol'],
-        ]);
+        // ===== Camino 1: usuario local =====
+        $usuarioLocal = User::where('username', $username)
+            ->where('tipo_autenticacion', 'local')
+            ->first();
 
-        // Creamos un token para el nuevo usuario.
-        // plainTextToken es el valor que el frontend deberá guardar.
-        $token = $user->createToken('auth_token')->plainTextToken;
+        if ($usuarioLocal) {
+            // Mismo mensaje que LDAP para no revelar si el usuario existe.
+            if (! Hash::check($datosValidos['password'], $usuarioLocal->password)) {
+                return response()->json(['message' => 'Credenciales incorrectas'], 401);
+            }
 
-        // Retornamos una respuesta JSON con código 201 porque el recurso fue creado correctamente.
-        return response()->json([
-            'message' => 'Usuario registrado correctamente',
-            'user' => $user,
-            'token' => $token,
-            'token_type' => 'Bearer'
-        ], 201);
-    }
+            return $this->responderConToken($usuarioLocal);
+        }
 
-/**
- * Iniciar sesión.
- *
- * Este método:
- * 1. Recibe un LoginRequest ya validado (email y password).
- * 2. Extrae el sAMAccountName a partir del email recibido.
- * 3. Intenta hacer bind contra LDAP (Active Directory) con ese usuario
- *    y la contraseña enviada. Si el bind falla, las credenciales son incorrectas.
- * 4. Si el bind es exitoso, consulta el directorio para obtener el correo
- *    real y el nombre completo del usuario desde LDAP.
- * 5. Busca el usuario en la base local por ese correo; si no existe,
- *    lo crea con rol por defecto (el rol se administra localmente, no en LDAP).
- * 6. Genera un token Sanctum para el usuario y lo retorna junto con sus datos.
- * 7. Si algo falla en cualquier punto (bind, usuario no encontrado, sin correo),
- *    devuelve el código HTTP correspondiente (401 o 500).
- */
-    public function login(LoginRequest $request)
-    {
-        //Obtenemos solo los datos basicos
-        $datosValidos = $request->validated();
-
-        // Armamos el usuario en formato CORP\usuario para el bind LDAP.
-        // El campo 'email' del formulario en realidad se usa como sAMAccountName aquí.
-        $samAccountName = $datosValidos['username'];
-        $ldapUsername = 'CORP\\' . $samAccountName;
-
-        $connection = new \LdapRecord\Connection([
-            'hosts' => [env('LDAP_HOST')],
-            'port' => env('LDAP_PORT', 389),
-            'base_dn' => env('LDAP_BASE_DN'),
-            'username' => $ldapUsername,
+        // ===== Camino 2: usuario LDAP =====
+        $connection = new Connection([
+            'hosts'    => [config('services.ldap.host')],
+            'port'     => config('services.ldap.port', 389),
+            'base_dn'  => config('services.ldap.base_dn'),
+            'username' => 'CORP\\' . $username,
             'password' => $datosValidos['password'],
         ]);
 
-        try{
-
-            $connection -> connect();
-        }catch(\LdapRecord\Auth\BindException $e){
-            return response() -> json ([
-                'message' => 'Credenciales incorrectas'
-            ],401);
+        try {
+            $connection->connect();
+        } catch (BindException $e) {
+            // Credenciales rechazadas por el Directorio Activo.
+            return response()->json(['message' => 'Credenciales incorrectas'], 401);
+        } catch (LdapRecordException $e) {
+            // Servidor caído o inaccesible: no es culpa de las credenciales.
+            report($e);
+            return response()->json([
+                'message' => 'No se pudo conectar con el servicio de autenticación. Intenta más tarde.',
+            ], 503);
         }
 
-        // Si el bind fue exitoso, buscamos los datos reales del usuario en el directorio.
-        $ldapUser = $connection -> query() -> where ('sAMAccountName', '=', $samAccountName) -> first();
+        $ldapUser = $connection->query()->where('sAMAccountName', '=', $username)->first();
 
-        if(!$ldapUser){
-            return response() -> json ([
-                'message' => 'Usuario no encontrado en el directorio',
-            ],401);
+        if (! $ldapUser) {
+            return response()->json(['message' => 'Usuario no encontrado en el directorio'], 401);
         }
 
-        $correoldap = $ldapUser['mail'][0] ?? null;
-        $nombreldap = $ldapUser['displayname'][0] ?? $samAccountName;
+        $correoLdap = $ldapUser['mail'][0] ?? null;
+        $nombreLdap = $ldapUser['displayname'][0] ?? $username;
 
-        if(!$correoldap){
+        if (! $correoLdap) {
             return response()->json([
                 'message' => 'El usuario no tiene correo configurado en el directorio',
-            ], 500);
+            ], 422);
         }
 
-        // Buscamos si ya existe localmente, o lo creamos con rol por defecto.
-        $user = User::firstOrCreate(
-            ['email' => $correoldap],
-            [
-                'name' => $nombreldap,
-                'password' => bcrypt(Str::random(32)), // no se usa para login, LDAP ya validó
-                'rol' => 'viewer', // rol por defecto para usuarios nuevos vía LDAP
-            ]
-        );
+        // Buscamos primero por username; si no, por correo SOLO entre usuarios LDAP
+        // (cubre usuarios antiguos creados antes de existir el campo username).
+        $usuario = User::where('username', $username)->first()
+            ?? User::where('email', $correoLdap)
+                ->where('tipo_autenticacion', 'ldap')
+                ->first();
 
-        $token = $user -> createToken('auth_token') -> plainTextToken;
+        if (! $usuario) {
+            // Evita que un correo de AD se asocie a una cuenta local existente.
+            if (User::where('email', $correoLdap)->exists()) {
+                return response()->json([
+                    'message' => 'El correo de tu cuenta ya está asociado a otro usuario. Contacta al administrador.',
+                ], 409);
+            }
+
+            $usuario = User::create([
+                'name'               => $nombreLdap,
+                'username'           => $username,
+                'email'              => $correoLdap,
+                'password'           => Str::random(32), // no se usa; LDAP valida
+                'tipo_autenticacion' => 'ldap',          // explícito, sin depender del default
+                'rol'                => 'viewer',        // rol por defecto, se administra localmente
+                'activo'             => true,
+            ]);
+        } else {
+            // Completamos datos de usuarios LDAP antiguos y mantenemos el nombre sincronizado.
+            $usuario->forceFill([
+                'username'           => $usuario->username ?? $username,
+                'tipo_autenticacion' => 'ldap',
+                'name'               => $nombreLdap,
+            ])->save();
+        }
+
+        return $this->responderConToken($usuario);
+    }
+
+    /**
+     * Verifica que el usuario esté activo y genera el token Sanctum.
+     */
+    private function responderConToken(User $usuario): JsonResponse
+    {
+        if (! $usuario->activo) {
+            return response()->json([
+                'message' => 'Tu usuario está desactivado. Contacta al administrador.',
+            ], 403);
+        }
+
+        $token = $usuario->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Inicio de sesion correcto',
-            'user' => $user,
-            'token' => $token,
+            'message'    => 'Inicio de sesión correcto',
+            'user'       => $usuario,
+            'token'      => $token,
             'token_type' => 'Bearer',
         ]);
     }
 
-    /**
-     * Cerrar sesión.
-     * Este método elimina únicamente el token actual,
-     * es decir, el token con el que se hizo la petición.
-     */
-    public function logout(Request $request)
+    /** Cerrar sesión: elimina solo el token actual. */
+    public function logout(Request $request): JsonResponse
     {
-        // Eliminamos el token actual del usuario autenticado.
         $request->user()->currentAccessToken()->delete();
 
-        // Retornamos mensaje de confirmación.
-        return response()->json([
-            'message' => 'Sesión cerrada correctamente',
-        ]);
+        return response()->json(['message' => 'Sesión cerrada correctamente']);
     }
 
-    /**
-     * Obtener el usuario autenticado actual
-     */
-    public function me(Request $request)
+    /** Obtener el usuario autenticado actual. */
+    public function me(Request $request): JsonResponse
     {
         return response()->json($request->user());
     }

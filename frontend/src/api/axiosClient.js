@@ -29,24 +29,23 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-//Intercerptor de respuestas
+// Interceptor de respuestas
 api.interceptors.response.use(
-  //Si la respuesta es exitosa retornamos
+    // Si la respuesta es exitosa, la retornamos.
     (response) => response,
 
-  //Si la respuesta falla revisamos el error
+    // Si la respuesta falla, verificamos el error.
     (error) => {
-    //Si el token es invalido
-    if (error.response?.status === 401) {
-      //Eliminamos el token invalido
-        localStorage.removeItem("token");
+        // Si el token es inválido o expiró (401), eliminamos el token local.
+        // La redirección al login la maneja RutaProtegida al fallar /api/me.
+        if (error.response?.status === 401) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("usuario");
+        }
 
-      //Redirijimos al login
-        window.location.href = "/login";
+        // Propagamos el error para que lo maneje quien llamó a la petición.
+        return Promise.reject(error);
     }
-
-    return Promise.reject(error);
-    },
 );
 
 export default api;

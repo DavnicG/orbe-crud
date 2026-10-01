@@ -4,14 +4,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UsuarioController;
+use Illuminate\Http\Request;
 
 // ===== RUTAS PÚBLICAS =====
 // Estas no requieren token.
 
-// Permite registrar un nuevo usuario.
-Route::post('/register', [AuthController::class, 'register']);
-// Permite iniciar sesión y obtener un token.
-Route::post('/login', [AuthController::class, 'login']);
+// Permite iniciar sesión y obtener un token. MAX 5 INTENTOS
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 // ===== RUTAS PROTEGIDAS =====
 // Estas sí requieren un token válido enviado en Authorization: Bearer ...

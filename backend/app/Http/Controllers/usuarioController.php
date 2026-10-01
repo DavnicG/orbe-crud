@@ -116,6 +116,11 @@ class UsuarioController extends Controller
         }
 
         $usuario -> update($datosValidados);
+
+        // Si se desactivó el acceso, cerramos todas sus sesiones activas.
+        if (array_key_exists('activo', $datosValidados) && ! $datosValidados['activo']) {
+            $usuario->tokens()->delete();
+        }
         $usuario -> refresh();
 
         return response() ->json([
@@ -129,7 +134,7 @@ class UsuarioController extends Controller
     public function destroy(User $usuario){
         //La policy rechaza LDAP y la auto-Eliminacion
         $this ->authorize('delete', $usuario);
-
+        $usuario->tokens()->delete();
         $usuario-> delete();
 
         return response() ->json([
