@@ -48,6 +48,9 @@ function UsuarioFormModal({
         // Contraseña local. Nunca se precarga por seguridad.
         password: "",
 
+        //Confirmacion de la contraseña
+        password_confirmation: "",
+
         // Rol inicial de menor privilegio.
         rol: "viewer",
 
@@ -95,6 +98,9 @@ function UsuarioFormModal({
                 // Nunca mostramos ni recuperamos la contraseña existente.
                 password: "",
 
+                //Confirmacion de la contraseña
+                password_confirmation: "",
+
                 // Rol actual del usuario.
                 rol: usuarioInicial.rol || "viewer",
 
@@ -109,6 +115,7 @@ function UsuarioFormModal({
                 username: "",
                 email: "",
                 password: "",
+                password_confirmation: "",
                 rol: "viewer",
                 activo: true,
             });
@@ -193,8 +200,6 @@ function UsuarioFormModal({
 
     /**
      * Maneja el envío del formulario.
-     *
-     * @param {Event} e Evento submit del formulario.
      */
     const handleSubmit = async (e) => {
         // Evitamos que el navegador recargue la página.
@@ -212,6 +217,14 @@ function UsuarioFormModal({
                 throw new Error(
                     "La contraseña es obligatoria para crear un usuario."
                 );
+            }
+
+            if(!formData.password && formData.password_confirmation){
+                throw new Error("Escribe tambien la nueva contraseña");
+            }
+
+            if(formData.password && formData.password !== formData.password_confirmation){
+                throw new Error("Las contraseñas no coinciden.");
             }
 
             // Copiamos los datos antes de ajustar el payload.
@@ -240,6 +253,7 @@ function UsuarioFormModal({
              */
             if (modo === "editar" && !datosAEnviar.password) {
                 delete datosAEnviar.password;
+                delete datosAEnviar.password_confirmation;
             }
 
             // Enviamos datos al componente padre.
@@ -415,6 +429,37 @@ function UsuarioFormModal({
                                         }
                                         disabled={enviando}
                                     />
+                                    <label
+                                        htmlFor="password_confirmation"
+                                        className="form-label"
+                                    >
+                                        Confirmar contraseña
+                                    </label>
+
+                                    <input
+                                        type="password"
+                                        id="password_confirmation"
+                                        name="password_confirmation"
+                                        className={`form-control ${
+                                            formData.password_confirmation &&
+                                            formData.password !== formData.password_confirmation
+                                            ? "is-invalid"
+                                            : ""
+                                        }`}
+                                        value={formData.password_confirmation}
+                                        onChange={handleChange}
+                                        required={modo === "crear"|| formData.password !== ""}
+                                        minLength={8}
+                                        autoComplete="new-password"
+                                        disabled={enviando}
+                                    />
+                                    {/*Mensaje visual si no coinciden*/}
+                                    {FormData.password_confirmation &&
+                                        formData.password !== formData.password_confirmation && (
+                                            <div className="invalid-feedback">
+                                                Las contraseñas no coinciden.
+                                            </div>
+                                    )}
 
                                     {/* Ayuda solo durante edición de usuarios locales. */}
                                     {modo === "editar" && (
