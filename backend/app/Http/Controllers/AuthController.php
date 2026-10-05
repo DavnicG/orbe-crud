@@ -11,6 +11,9 @@ use Illuminate\Support\Str;
 use LdapRecord\Auth\BindException;
 use LdapRecord\Connection;
 use LdapRecord\LdapRecordException;
+use App\Http\Requests\VerifyTwoFactorRequest;
+use App\Http\Requests\ResendTwoFactorRequest;
+use App\Services\TwoFactorService;
 
 class AuthController extends Controller
 {
@@ -32,12 +35,32 @@ class AuthController extends Controller
             ->first();
 
         if ($usuarioLocal) {
-            // Mismo mensaje que LDAP para no revelar si el usuario existe.
             if (! Hash::check($datosValidos['password'], $usuarioLocal->password)) {
-                return response()->json(['message' => 'Credenciales incorrectas'], 401);
+                return response()->json([
+                    'message' => 'Credenciales incorrectas',
+                ], 401);
             }
 
-            return $this->responderConToken($usuarioLocal);
+            // Rechazamos usuarios inactivos antes de crear un código o enviar correo.
+            if (! $usuarioLocal->activo) {
+                return response()->json([
+                    'message' => 'Tu usuario está desactivado. Contacta al administrador.',
+                ], 403);
+            }
+
+            // Generamos el desafío y enviamos el código al correo del usuario.
+            $codigoDosFactores = app(TwoFactorService::class)->generarCodigo(
+                $usuarioLocal,
+                $request->ip(),
+                $request->userAgent()
+            );
+
+            // Todavía NO se entrega token Sanctum.
+            return response()->json([
+                'message' => 'Te enviamos un código de verificación a tu correo electrónico.',
+                'requires_two_factor' => true,
+                'challenge_token' => $codigoDosFactores->challenge_token,
+            ], 202);
         }
 
         // ===== Camino 2: usuario LDAP =====
@@ -134,6 +157,76 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Verifica un código 2FA de un usuario local.
+     *
+     * Solo después de una verificación exitosa se crea el token Sanctum.
+     */
+    public function verifyTwoFactor(
+        VerifyTwoFactorRequest $request,
+        TwoFactorService $twoFactorService
+    ): JsonResponse {
+        $datosValidados = $request->validated();
+
+        $usuario = $twoFactorService->verificarCodigo(
+            $datosValidados['challenge_token'],
+            $datosValidados['code']
+        );
+
+        // No revelamos si falló por token inválido, vencido, usado o código erróneo.
+        if (! $usuario) {
+            return response()->json([
+                'message' => 'El código de verificación no es válido, ya fue usado o venció.',
+            ], 422);
+        }
+
+        // Protección adicional: el 2FA solo debe emitir tokens a usuarios locales activos.
+        if (
+            $usuario->tipo_autenticacion !== 'local'
+            || ! $usuario->activo
+        ) {
+            return response()->json([
+                'message' => 'No fue posible completar la verificación de acceso.',
+            ], 403);
+        }
+
+        $token = $usuario->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Inicio de sesión verificado correctamente.',
+            'user' => $usuario,
+            'token' => $token,
+            'token_type' => 'Bearer',
+        ]);
+    }
+
+    /**
+     * Genera un código nuevo para un desafío 2FA aún vigente.
+     */
+    public function resendTwoFactor(
+        ResendTwoFactorRequest $request,
+        TwoFactorService $twoFactorService
+    ): JsonResponse {
+        $datosValidados = $request->validated();
+
+        $nuevoCodigo = $twoFactorService->reenviarCodigo(
+            $datosValidados['challenge_token'],
+            $request->ip(),
+            $request->userAgent()
+        );
+
+        // No revelamos detalles internos del desafío.
+        if (! $nuevoCodigo) {
+            return response()->json([
+                'message' => 'No se pudo reenviar el código. Inicia sesión nuevamente.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Te enviamos un nuevo código de verificación a tu correo.',
+            'challenge_token' => $nuevoCodigo->challenge_token,
+        ]);
+    }
     /** Cerrar sesión: elimina solo el token actual. */
     public function logout(Request $request): JsonResponse
     {

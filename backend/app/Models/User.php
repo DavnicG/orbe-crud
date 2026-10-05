@@ -12,6 +12,7 @@ use Illuminate\Notifications\Notifiable;
 // Este trait Sanctum lo necesita para poder crear y administrar tokens de acceso.
 use Laravel\Sanctum\HasApiTokens;
 use App\Models\Producto;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -60,5 +61,11 @@ class User extends Authenticatable
     public function productos()
     {
         return $this->hasMany(Producto::class);
+    }
+    /**
+     * Historial de códigos de doble factor generados para este usuario.
+    */
+    public function twoFactorCodes(): HasMany{
+        return $this ->hasMany(TwoFactorCode::class);
     }
 }

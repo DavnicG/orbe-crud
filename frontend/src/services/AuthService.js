@@ -12,12 +12,22 @@ export const iniciarSesion = async (credenciales) => {
     return await api.post('/login', credenciales);
 };
 
+export const verificarDosFactores = (datos) => {
+    return api.post("/two-factor/verify", datos);
+};
+
+export const reenviarCodigoDosFactores = (challengeToken) => {
+    return api.post("/two-factor/resend", {
+        challenge_token: challengeToken,
+    });
+};
+
 //Cerrar sesion
 export const cerrarSesion = async () =>{
     return await api.post('/logout');
 };
 
 //Obtener los datos del usuario autenticado
-export const obtenerUsuarioActual = async () =>{
-    return await api.get('/me');
+export const obtenerUsuarioActual = () => {
+    return api.get("/me");
 };
