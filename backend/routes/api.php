@@ -11,6 +11,10 @@ use Illuminate\Http\Request;
 
 // Permite iniciar sesión y obtener un token. MAX 5 INTENTOS
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+//Permite verificar codgio de acceso para usuarios locales
+Route::post('/two-factor/verify', [AuthController::class, 'verifyTwoFactor']);
+//Permite solicitar el reenvio del codigo de acceso para usuarios locales
+Route::post('/two-factor/resend', [AuthController::class, 'resendTwoFactor']);
 
 // ===== RUTAS PROTEGIDAS =====
 // Estas sí requieren un token válido enviado en Authorization: Bearer ...
