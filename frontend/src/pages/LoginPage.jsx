@@ -3,6 +3,7 @@ import {useNavigate} from "react-router-dom";
 import {iniciarSesion} from "../services/AuthService";
 import {useAuth} from "../context/AuthContext";
 
+
 function LoginPage (){
 
     //Estado local del formulario de login
@@ -36,43 +37,51 @@ function LoginPage (){
 
     //Se ejecuta cuando el usuario envia el form
     const handleSubmit = async (e) => {
-
-        //Evita que el navegador recargue lapagina
         e.preventDefault();
 
-        //Evitamos  multiples envios mientras se procesa
-        if(enviando) return;
+        if (enviando) return;
+
         setEnviando(true);
-        setError('');
+        setError("");
 
-        try{
-            //Llamamos al backend con las credenciales ingresadas
+        try {
             const respuesta = await iniciarSesion(formData);
+            const datos = respuesta.data;
 
-            //Guardamos el token el localStorage
-            localStorage.setItem('token', respuesta.data.token);
+            // Usuario local: todavía no existe una sesión autenticada.
+            if (datos.requires_two_factor) {
+                sessionStorage.setItem(
+                    "challenge_token",
+                    datos.challenge_token
+                );
 
-            //Guardamos los datos del usuario
-            localStorage.setItem('usuario', JSON.stringify(respuesta.data.user));
+                navigate("/verificar-codigo", {
+                    replace: true,
+                    state: {
+                        challengeToken: datos.challenge_token,
+                    },
+                });
 
-            //Avisamos al compnente padre que el login fue exitoso
-            iniciarSesionLocal(respuesta.data.user);
+                return;
+            }
 
-            //Redirigimos a la pagina de productos
+            // Usuario LDAP: recibe el token directamente.
+            localStorage.setItem("token", datos.token);
+            localStorage.setItem("usuario", JSON.stringify(datos.user));
+
+            iniciarSesionLocal(datos.user);
+
             navigate("/productos", { replace: true });
-        }catch(err){
-            console.error('Error al iniciar sesion: ', err);
+        } catch (err) {
+            console.error("Error al iniciar sesión:", err);
 
-            // Mensaje específico del backend.
             const mensajeBackend = err.response?.data?.message;
 
-            // Si el backend envió un mensaje, lo usamos.
-            if (mensajeBackend) {
-                setError(mensajeBackend);
-            } else {
-                setError("No se pudo iniciar sesión. Intenta de nuevo.");
-            }
-        }finally{
+            setError(
+                mensajeBackend ||
+                "No se pudo iniciar sesión. Intenta de nuevo."
+            );
+        } finally {
             setEnviando(false);
         }
     };

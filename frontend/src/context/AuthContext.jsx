@@ -34,6 +34,10 @@ export function AuthProvider({children}){
             }catch(error){
                 //Si el token ya no es valido, el interceptor de axios se encarga de limpiar localStorage y redirigir
                 console.error('Sesion invalida:', error);
+
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("usuario");
+                    setUsuario(null);
             }finally{
                 setCargandoSesion(false);
             }
@@ -42,8 +46,8 @@ export function AuthProvider({children}){
     },[]);
 
     //Esta funcion la llamara LoginPage cuando el login sea exitoso.
-    const iniciarSesionLocal = (datosUsuario) =>{
-        setUsuario(datosUsuario);
+    const iniciarSesionLocal = (usuario) => {
+    setUsuario(usuario);
     };
 
     //Esta funcion la llamara el boton de "Cerrar sesion".
