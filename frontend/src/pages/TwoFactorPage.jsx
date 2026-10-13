@@ -6,6 +6,9 @@ import {
 } from "../services/AuthService";
 import { useAuth } from "../context/AuthContext";
 
+// Segundos que el usuario debe esperar antes de pedir otro código.
+const SEGUNDOS_ESPERA_REENVIO = 60;
+
 function TwoFactorPage(){
 
     const navigate = useNavigate();
@@ -21,6 +24,10 @@ function TwoFactorPage(){
     const [enviando, setEnviando] = useState(false);
     const [reenviando, setReenviando] = useState(false);
     const verificacionExitosa = useRef(false);
+    // Segundos restantes antes de poder reenviar. Empieza en espera porque el código acaba de enviarse durante el login.
+    const [segundosRestantes, setSegundosRestantes] = useState(
+        SEGUNDOS_ESPERA_REENVIO
+    );
 
     useEffect(()=>{
         const tokenRecibido = location.state?.challengeToken;
@@ -36,6 +43,25 @@ useEffect(() => {
         navigate("/login", { replace: true });
     }
 }, [challengeToken, navigate]);
+
+/**
+ * Cuenta regresiva del reenvío.
+ *
+ * Mientras queden segundos, un temporizador resta 1 cada segundo.
+ * Al llegar a 0 se detiene y el botón vuelve a habilitarse.
+ */
+useEffect(() => {
+    if (segundosRestantes <= 0) {
+        return;
+    }
+
+    const temporizador = setTimeout(() => {
+        setSegundosRestantes((actual) => actual - 1);
+    }, 1000);
+
+    // Limpieza para no dejar temporizadores huérfanos al desmontar.
+    return () => clearTimeout(temporizador);
+}, [segundosRestantes]);
 
     const limpiarDesafio = () => {
         sessionStorage.removeItem("challenge_token");
@@ -77,6 +103,10 @@ useEffect(() => {
 
             navigate("/productos", { replace: true });
         }catch(err){
+            if (err.response?.status === 429) {
+                setError("Demasiados intentos. Espera un minuto e inténtalo de nuevo.");
+                return;
+            }
             const mensajeBackend = err.response?.data?.message;
 
             setError(
@@ -89,7 +119,9 @@ useEffect(() => {
     }
 
     const handleReenviar = async () => {
-        if (reenviando || !challengeToken) {
+        // No reenviamos si ya hay una petición en curso, no hay desafío
+        // o todavía falta tiempo de espera.
+        if (reenviando || !challengeToken || segundosRestantes > 0) {
             return;
         }
 
@@ -105,11 +137,21 @@ useEffect(() => {
             setChallengeToken(nuevoChallengeToken);
             setCode("");
 
+            // Reiniciamos la espera de 60 segundos.
+            setSegundosRestantes(SEGUNDOS_ESPERA_REENVIO);
+
             setMensaje(
                 respuesta.data.message ||
                 "Te enviamos un nuevo código a tu correo."
             );
         } catch (err) {
+            // 429: límite de reenvíos por minuto del backend.
+            if (err.response?.status === 429) {
+                setSegundosRestantes(SEGUNDOS_ESPERA_REENVIO);
+                setError("Demasiadas solicitudes. Espera un minuto antes de reenviar.");
+                return;
+            }
+
             const mensajeBackend = err.response?.data?.message;
 
             setError(
@@ -185,9 +227,13 @@ useEffect(() => {
                         type="button"
                         className="btn btn-link w-100 mt-2"
                         onClick={handleReenviar}
-                        disabled={reenviando}
+                        disabled={reenviando || segundosRestantes > 0}
                     >
-                        {reenviando ? "Reenviando..." : "Reenviar código"}
+                        {reenviando
+                            ? "Reenviando..."
+                            : segundosRestantes > 0
+                                ? `Reenviar código en ${segundosRestantes} s`
+                                : "Reenviar código"}
                     </button>
 
                     <button

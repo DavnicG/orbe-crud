@@ -43,6 +43,22 @@ api.interceptors.response.use(
             localStorage.removeItem("usuario");
         }
 
+        // 403 con código USER_INACTIVE: al usuario le quitaron el acceso
+        // mientras tenía la sesión abierta. Limpiamos y volvemos al login.
+        if (
+            error.response?.status === 403 &&
+            error.response?.data?.code === "USER_INACTIVE"
+        ) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("usuario");
+            sessionStorage.removeItem("challenge_token");
+
+            // Evitamos un bucle si ya estamos en el login.
+            if (window.location.pathname !== "/login") {
+                window.location.assign("/login");
+            }
+        }
+
         // Propagamos el error para que lo maneje quien llamó a la petición.
         return Promise.reject(error);
     }

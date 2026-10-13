@@ -1,87 +1,50 @@
-// Importamos los hooks de React.
-// useEffect ejecuta lógica después de renderizar.
-// useState guarda estados locales.
-// useRef guarda una referencia directa al elemento table del DOM.
 import { useEffect, useRef, useState } from "react";
-
-// Importamos useNavigate para navegar entre rutas mediante código.
 import { useNavigate } from "react-router-dom";
-
-// Importamos el contexto de autenticación para conocer el usuario actual
-// y para limpiar la sesión local cuando se cierre sesión.
 import { useAuth } from "../context/AuthContext";
-
-// Importamos las funciones que realizan peticiones HTTP al CRUD de usuarios.
-import {
-    obtenerUsuarios,
-    crearUsuario,
-    actualizarUsuario,
-    eliminarUsuario,
-} from "../services/UsuarioService";
-
-// Importamos el modal reutilizable para crear y editar usuarios.
+import {obtenerUsuarios,crearUsuario,actualizarUsuario,eliminarUsuario,} from "../services/UsuarioService";
 import UsuarioFormModal from "../components/UsuarioFormModal";
-
-// Importamos la función que llama al endpoint POST /logout.
 import { cerrarSesion } from "../services/AuthService";
-
-// Importamos estilos de Bootstrap usados por esta página.
 import "bootstrap/dist/css/bootstrap.min.css";
-
-// Importamos Bootstrap Icons para los botones y encabezados.
 import "bootstrap-icons/font/bootstrap-icons.css";
-
-// Importamos las alertas ya usadas en ProductosPage.
-// Así conservamos la misma experiencia visual en toda la aplicación.
-import {
-    mostrarCargando,
-    cerrarAlerta,
-    mostrarExito,
-    mostrarError,
-    confirmarEliminacion,
-} from "../utils/alerts";
+import {mostrarCargando,cerrarAlerta,mostrarExito,mostrarError,confirmarEliminacion,} from "../utils/alerts";
 
 /**
  * Página de gestión de usuarios.
  *
  * Esta página solo puede ser utilizada por administradores y permite:
- * - Consultar todos los usuarios registrados en la base local.
- * - Crear usuarios manuales de autenticación local.
- * - Editar datos permitidos según el tipo de autenticación.
- * - Cambiar rol y acceso para usuarios LDAP y locales.
- * - Eliminar únicamente usuarios locales.
+ * - Consultar los usuarios registrados en el aplicativo (todos son del LDAP).
+ * - Agregar usuarios buscándolos en el Directorio Activo por su username.
+ * - Cambiar el rol y el acceso de un usuario.
+ * - Eliminar usuarios solo del aplicativo (no del Directorio Activo).
  *
  * La seguridad definitiva se aplica en Laravel mediante UsuarioPolicy.
  * La validación del rol en React solo mejora la experiencia visual.
  */
+
+/**
+ * Escapa caracteres especiales de HTML.
+ *
+ * El nombre del usuario viene del Directorio Activo y la alerta de
+ * confirmación renderiza HTML, así que lo limpiamos para evitar inyección.
+ */
+const escaparHtml = (texto = "") =>
+    String(texto)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
 function UsuariosPage() {
-    // Creamos la función navigate para redireccionar a otras páginas.
+
     const navigate = useNavigate();
-
-    // Obtenemos el usuario autenticado y la función que limpia la sesión local.
     const { usuario, cerrarSesionLocal } = useAuth();
-
-    // Estado que guarda los usuarios consultados desde GET /api/usuarios.
     const [usuarios, setUsuarios] = useState([]);
-
-    // Estado que controla el spinner mientras se consulta la API.
     const [cargando, setCargando] = useState(true);
-
-    // Estado que almacena un mensaje de error para mostrarlo en pantalla.
     const [error, setError] = useState("");
-
-    // Estado que controla si el modal de crear o editar está visible.
     const [modalAbierto, setModalAbierto] = useState(false);
-
-    // Estado que guarda el usuario seleccionado al presionar Editar.
-    // Si vale null, el modal se utiliza para crear un usuario.
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
-
-    // Estado que define el comportamiento del modal: crear o editar.
     const [modoModal, setModoModal] = useState("crear");
-
-    // Referencia directa al elemento table.
-    // Bootstrap Table necesita acceder al elemento real del DOM mediante esta referencia.
     const tableRef = useRef(null);
 
     /**
@@ -344,50 +307,6 @@ function UsuariosPage() {
                     },
                 },
                 {
-                    // Campo del origen de autenticación.
-                    field: "tipo_autenticacion",
-
-                    // Texto mostrado en el encabezado.
-                    title: "Autenticación",
-
-                    // Permite ordenar por el tipo.
-                    sortable: true,
-
-                    // Alineación vertical del contenido.
-                    valign: "middle",
-
-                    /**
-                     * Muestra LDAP o Local como un badge visual.
-                     */
-                    formatter: (value) => {
-
-                        // Definimos color y texto para cada origen.
-                        const configuracion = {
-                            ldap: {
-                                clase: "bg-primary",
-                                texto: "LDAP",
-                            },
-                            local: {
-                                clase: "bg-secondary",
-                                texto: "Local",
-                            },
-                        };
-
-                        // Si el valor no coincide, mostramos un estado por defecto.
-                        const tipo = configuracion[value] || {
-                            clase: "bg-dark",
-                            texto: value || "Sin definir",
-                        };
-
-                        // Retornamos el badge correspondiente.
-                        return `
-                            <span class="badge ${tipo.clase}">
-                                ${tipo.texto}
-                            </span>
-                        `;
-                    },
-                },
-                {
                     // Campo que representa el acceso del usuario.
                     field: "activo",
 
@@ -430,34 +349,36 @@ function UsuariosPage() {
                     valign: "middle",
 
                     /**
-                     * Renderiza botones de acción para cada fila.
+                     * Renderiza los botones de acción de cada fila.
                      *
-                     * Todos los usuarios se pueden editar.
-                     * Solo los usuarios locales se pueden eliminar.
+                     * Todos los usuarios se pueden editar (rol y acceso).
+                     * Todos se pueden eliminar del aplicativo, excepto el propio admin
+                     * que tiene la sesión abierta.
                      */
                     formatter: (value, row) => {
-                        // Creamos el botón eliminar solo para autenticación local.
-                        const botonEliminar =
-                            row.tipo_autenticacion === "local"
-                                ? `
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-danger btn-eliminar"
-                                        title="Eliminar usuario local"
-                                    >
-                                        <i class="bi bi-trash"></i>
-                                        Eliminar
-                                    </button>
-                                `
-                                : "";
+                        // Un admin no puede eliminarse a sí mismo.
+                        const esMiUsuario = row.id === usuario?.id;
 
-                        // Retornamos botones válidos según el tipo de usuario.
+                        // El botón eliminar solo se ofrece sobre otros usuarios.
+                        const botonEliminar = esMiUsuario
+                            ? ""
+                            : `
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-danger btn-eliminar"
+                                    title="Eliminar usuario del aplicativo"
+                                >
+                                    <i class="bi bi-trash"></i>
+                                    Eliminar
+                                </button>
+                            `;
+
                         return `
                             <div class="d-flex justify-content-center gap-2">
                                 <button
                                     type="button"
                                     class="btn btn-sm btn-primary btn-editar"
-                                    title="Editar usuario"
+                                    title="Editar rol y acceso"
                                 >
                                     <i class="bi bi-pencil"></i>
                                     Editar
@@ -497,7 +418,7 @@ function UsuariosPage() {
                 $(tableRef.current).bootstrapTable("destroy");
             }
         };
-    }, [usuarios, cargando, error]);
+    }, [usuarios, cargando, error, usuario?.id]);
 
     /**
      * Abre el modal en modo creación.
@@ -530,19 +451,19 @@ function UsuariosPage() {
     };
 
     /**
-     * Elimina un usuario local después de solicitar confirmación.
+     * Elimina un usuario del aplicativo después de solicitar confirmación.
+     *
+     * Es una eliminación suave en la base local: el usuario no se borra
+     * del Directorio Activo y puede volver a agregarse más adelante.
      *
      * @param {object} usuarioEliminar Usuario que se eliminará.
      */
     const handleEliminarUsuario = async (usuarioEliminar) => {
-        // Protección extra: nunca intentamos eliminar un usuario LDAP desde frontend.
-        if (usuarioEliminar.tipo_autenticacion !== "local") {
-            mostrarError("Los usuarios LDAP no se eliminan desde esta aplicación.");
-            return;
-        }
-
-        // Reutilizamos la confirmación de SweetAlert2 del proyecto.
-        const confirmado = await confirmarEliminacion(usuarioEliminar.name);
+        // Confirmación de SweetAlert2, aclarando que no se toca el LDAP.
+        const confirmado = await confirmarEliminacion(
+            escaparHtml(usuarioEliminar.name),
+            "Se quitará del aplicativo. Su cuenta en el Directorio Activo no se modifica."
+        );
 
         // Si el administrador cancela, no realizamos ninguna petición.
         if (!confirmado) {
@@ -559,8 +480,7 @@ function UsuariosPage() {
             // Quitamos el usuario eliminado del estado local.
             setUsuarios((usuariosActuales) =>
                 usuariosActuales.filter(
-                    (usuarioActual) =>
-                        usuarioActual.id !== usuarioEliminar.id
+                    (usuarioActual) => usuarioActual.id !== usuarioEliminar.id
                 )
             );
 
@@ -568,7 +488,7 @@ function UsuariosPage() {
             cerrarAlerta();
 
             // Mostramos confirmación de éxito.
-            mostrarExito("Usuario eliminado correctamente.");
+            mostrarExito("Usuario eliminado del aplicativo.");
         } catch (err) {
             // Registramos el error técnico.
             console.error("Error al eliminar el usuario:", err);
@@ -576,10 +496,9 @@ function UsuariosPage() {
             // Cerramos loader aunque Laravel responda con error.
             cerrarAlerta();
 
-            // Mostramos mensaje del backend cuando exista.
+            // Mostramos el mensaje del backend (por ejemplo, "último administrador").
             mostrarError(
-                err.response?.data?.message ||
-                "No se pudo eliminar el usuario."
+                err.response?.data?.message || "No se pudo eliminar el usuario."
             );
         }
     };
@@ -596,13 +515,16 @@ function UsuariosPage() {
                 // Mostramos spinner durante creación.
                 mostrarCargando("Creando usuario...");
 
-                // Creamos el usuario local.
+                // Enviamos { username, rol, activo }. El backend consulta el LDAP.
                 const response = await crearUsuario(datosFormulario);
 
-                // Agregamos el usuario nuevo al inicio de la lista.
+                // Si el backend restauró a un usuario eliminado, no debe quedar duplicado:
+                // quitamos cualquier fila con el mismo id y lo ponemos al inicio.
                 setUsuarios((usuariosActuales) => [
                     response.data.data,
-                    ...usuariosActuales,
+                    ...usuariosActuales.filter(
+                        (usuarioActual) => usuarioActual.id !== response.data.data.id
+                    ),
                 ]);
 
                 // Cerramos loader.
@@ -614,8 +536,8 @@ function UsuariosPage() {
                 // Limpiamos selección.
                 setUsuarioSeleccionado(null);
 
-                // Mostramos éxito.
-                mostrarExito("Usuario creado correctamente.");
+                // Mostramos el mensaje del backend (creado o restaurado).
+                mostrarExito(response.data.message || "Usuario creado correctamente.");
 
                 // Detenemos la ejecución para no llegar a edición.
                 return;
@@ -728,7 +650,7 @@ function UsuariosPage() {
                             className="text-muted mb-0"
                             style={{ fontSize: "0.9rem" }}
                         >
-                            Administración de accesos, roles y usuarios locales.
+                            Administración de accesos y roles de usuarios del Directorio Activo.
                         </p>
                     </div>
 

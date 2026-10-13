@@ -48,12 +48,11 @@ function LoginPage (){
             const respuesta = await iniciarSesion(formData);
             const datos = respuesta.data;
 
-            // Usuario local: todavía no existe una sesión autenticada.
-            if (datos.requires_two_factor) {
-                sessionStorage.setItem(
-                    "challenge_token",
-                    datos.challenge_token
-                );
+            // Todos los usuarios son del Directorio Activo y pasan por el 2FA:
+            // todavía no existe una sesión autenticada (no hay token Sanctum).
+            if (datos.requires_two_factor && datos.challenge_token) {
+                // Guardamos el desafío para sobrevivir a una recarga de la página.
+                sessionStorage.setItem("challenge_token", datos.challenge_token);
 
                 navigate("/verificar-codigo", {
                     replace: true,
@@ -65,15 +64,18 @@ function LoginPage (){
                 return;
             }
 
-            // Usuario LDAP: recibe el token directamente.
-            localStorage.setItem("token", datos.token);
-            localStorage.setItem("usuario", JSON.stringify(datos.user));
-
-            iniciarSesionLocal(datos.user);
-
-            navigate("/productos", { replace: true });
+            // Si el backend no pidió 2FA, no se concede acceso por seguridad.
+            setError(
+                "Respuesta inesperada del servidor. Contacta al administrador."
+            );
         } catch (err) {
             console.error("Error al iniciar sesión:", err);
+
+            // 429: se superó el límite de intentos por minuto del backend.
+            if (err.response?.status === 429) {
+                setError("Demasiados intentos. Espera un minuto e inténtalo de nuevo.");
+                return;
+            }
 
             const mensajeBackend = err.response?.data?.message;
 
@@ -94,7 +96,7 @@ function LoginPage (){
                     <h1 className="card-title mb-4 text-center h4">Iniciar sesion</h1>
 
                     <form onSubmit={handleSubmit}>
-                        {/*Campo email*/}
+                        {/*Campo usuario de dominio*/}
                         <div className="mb-3">
                             <label htmlFor="username" className="form-label">
                                 Usuario de dominio

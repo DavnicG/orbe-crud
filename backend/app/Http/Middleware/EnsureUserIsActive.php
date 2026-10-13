@@ -32,9 +32,11 @@ class EnsureUserIsActive
             //Revocamos todos los tokens para cerrar sus sesiones activas
             $usuario->tokens()->delete();
 
-            return response()->json([
-                'message'=>'Tu acceso está desactivado. Contacta al administrador.',
-            ],403);
+        return response()->json([
+            'message' => 'Tu acceso está desactivado. Contacta al administrador.',
+            // Código estable para que el frontend identifique este caso sin depender del texto del mensaje.
+            'code' => 'USER_INACTIVE',
+        ], 403);
         }
 
         // Si está activo, continúa con la petición.

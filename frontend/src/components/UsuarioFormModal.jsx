@@ -1,30 +1,26 @@
-// Importamos hooks de React.
-// useState guarda datos y estados del formulario.
-// useEffect sincroniza el formulario y el modal con sus props.
-// useRef guarda una referencia al elemento modal del DOM.
-import { useEffect, useRef, useState } from "react";
+// useState guarda los datos del formulario y los estados de carga.
+// useEffect reinicia el formulario cuando se abre el modal o cambia el usuario.
+import { useEffect, useState } from "react";
 
-// Importamos estilos de Bootstrap para mantener el mismo estilo visual.
+// Estilos de Bootstrap para mantener el mismo estilo visual.
 import "bootstrap/dist/css/bootstrap.min.css";
 
+// Servicio que consulta el Directorio Activo a través del backend.
+import { buscarUsuarioLdap } from "../services/UsuarioService";
+
 /**
- * Modal reutilizable para crear o editar usuarios.
+ * Modal para crear o editar usuarios del aplicativo.
  *
- * Reglas según el tipo de usuario:
- *
- * Usuario local:
- * - Puede editar nombre, username, correo, rol, acceso y contraseña.
- *
- * Usuario LDAP:
- * - Solo puede editar rol y acceso.
- * - Nombre, username y correo vienen del Directorio Activo.
- * - La contraseña se valida contra Active Directory y no se administra aquí.
+ * Todos los usuarios vienen del Directorio Activo (LDAP):
+ * - Crear: el admin busca el username en el LDAP, ve nombre y correo
+ *   en solo lectura y asigna rol y acceso.
+ * - Editar: solo se pueden cambiar rol y acceso.
  *
  * Props:
  * - isOpen: indica si el modal debe mostrarse.
  * - onClose: función que cierra el modal desde el componente padre.
- * - onSubmit: función que recibe datos válidos para crear o actualizar.
- * - modo: puede ser "crear" o "editar".
+ * - onSubmit: recibe { username, rol, activo } al crear o { rol, activo } al editar.
+ * - modo: "crear" o "editar".
  * - usuarioInicial: usuario seleccionado cuando el modo es editar.
  */
 function UsuarioFormModal({
@@ -34,243 +30,149 @@ function UsuarioFormModal({
     modo,
     usuarioInicial,
 }) {
-    // Estado local con los datos que maneja el formulario.
-    const [formData, setFormData] = useState({
-        // Nombre completo del usuario.
-        name: "",
+    // Username que el admin escribe para buscar en el LDAP (solo modo crear).
+    const [username, setUsername] = useState("");
 
-        // Username usado para iniciar sesión.
-        username: "",
+    // Resultado de la búsqueda: { username, nombre, correo } o null.
+    const [usuarioLdap, setUsuarioLdap] = useState(null);
 
-        // Correo electrónico.
-        email: "",
+    // Datos que sí puede decidir el administrador.
+    const [rol, setRol] = useState("viewer");
+    const [activo, setActivo] = useState(true);
 
-        // Contraseña local. Nunca se precarga por seguridad.
-        password: "",
-
-        //Confirmacion de la contraseña
-        password_confirmation: "",
-
-        // Rol inicial de menor privilegio.
-        rol: "viewer",
-
-        // Los usuarios nuevos quedan activos por defecto.
-        activo: true,
-    });
-
-    // Estado que deshabilita botones mientras se guarda.
+    // Estados que deshabilitan botones mientras se busca o se guarda.
+    const [buscando, setBuscando] = useState(false);
     const [enviando, setEnviando] = useState(false);
 
-    // Estado para mostrar errores locales dentro del modal.
+    // Mensaje de error local dentro del modal.
     const [error, setError] = useState("");
 
-    // Referencia al elemento principal del modal.
-    const modalRef = useRef(null);
-
-    /**
-     * Identifica si estamos editando un usuario autenticado mediante LDAP.
-     *
-     * Para estos usuarios se bloquean campos gestionados por Active Directory:
-     * nombre, username, correo y contraseña.
-     */
-    const esUsuarioLdap =
-        modo === "editar" &&
-        usuarioInicial?.tipo_autenticacion === "ldap";
+    // Atajo para saber si estamos creando.
+    const esCrear = modo === "crear";
 
     /**
      * Inicializa o limpia el formulario cuando cambia el modo,
      * el usuario seleccionado o el estado de apertura del modal.
      */
     useEffect(() => {
-        // Si estamos editando y existe un usuario seleccionado.
         if (modo === "editar" && usuarioInicial) {
-            // Prellenamos los campos con los datos actuales del usuario.
-            setFormData({
-                // Nombre actual.
-                name: usuarioInicial.name || "",
-
-                // Username actual.
-                username: usuarioInicial.username || "",
-
-                // Correo actual.
-                email: usuarioInicial.email || "",
-
-                // Nunca mostramos ni recuperamos la contraseña existente.
-                password: "",
-
-                //Confirmacion de la contraseña
-                password_confirmation: "",
-
-                // Rol actual del usuario.
-                rol: usuarioInicial.rol || "viewer",
-
-                // Estado activo actual.
-                // El operador ?? preserva false si el usuario está desactivado.
-                activo: usuarioInicial.activo ?? true,
-            });
-        } else if (modo === "crear") {
-            // Si estamos creando, reiniciamos todos los campos.
-            setFormData({
-                name: "",
-                username: "",
-                email: "",
-                password: "",
-                password_confirmation: "",
-                rol: "viewer",
-                activo: true,
-            });
+            // Editar: precargamos solo lo que se puede cambiar.
+            setRol(usuarioInicial.rol || "viewer");
+            // El operador ?? conserva false si el usuario está sin acceso.
+            setActivo(usuarioInicial.activo ?? true);
+        } else {
+            // Crear: valores por defecto, con el rol de menor privilegio.
+            setRol("viewer");
+            setActivo(true);
         }
 
-        // Limpiamos cualquier mensaje de error previo.
+        // Limpiamos búsqueda y errores previos.
+        setUsername("");
+        setUsuarioLdap(null);
         setError("");
     }, [modo, usuarioInicial, isOpen]);
 
     /**
-     * Sincroniza el modal de Bootstrap con la prop isOpen.
+     * Si el admin cambia el username después de buscar, descartamos la
+     * vista previa. Así nunca se guarda un username distinto al verificado.
      */
-    useEffect(() => {
-        // Verificamos que Bootstrap esté disponible globalmente
-        // y que el elemento del modal exista en el DOM.
-        if (!window.bootstrap || !modalRef.current) {
-            return;
-        }
-
-        // Creamos una instancia de Bootstrap Modal.
-        const modal = new window.bootstrap.Modal(modalRef.current, {
-            // No se cierra al hacer clic fuera.
-            backdrop: "static",
-
-            // No se cierra al presionar Escape.
-            keyboard: false,
-        });
-
-        // Si el padre indica que debe abrirse, mostramos el modal.
-        if (isOpen) {
-            modal.show();
-        } else {
-            // Si el padre indica que debe cerrarse, lo ocultamos.
-            modal.hide();
-        }
-
-        /**
-         * Se ejecuta al terminar de ocultarse el modal.
-         *
-         * Esto cubre el caso donde el usuario pulsa la X
-         * o donde Bootstrap cierra visualmente el modal.
-         */
-        const handleHidden = () => {
-            // Avisamos al componente padre para sincronizar su estado.
-            onClose();
-        };
-
-        // Agregamos el listener correcto del evento Bootstrap.
-        modalRef.current.addEventListener("hidden.bs.modal", handleHidden);
-
-        // Limpiamos listeners e instancia al desmontar el componente.
-        return () => {
-            // Removemos exactamente el mismo evento registrado.
-            modalRef.current?.removeEventListener(
-                "hidden.bs.modal",
-                handleHidden
-            );
-
-            // Destruimos la instancia para liberar memoria.
-            modal.dispose();
-        };
-    }, [isOpen, onClose]);
-
-    /**
-     * Actualiza el estado cuando el usuario escribe o modifica un campo.
-     *
-     * @param {Event} e Evento generado por input, select o checkbox.
-     */
-    const handleChange = (e) => {
-        // Obtenemos información del control que cambió.
-        const { name, value, type, checked } = e.target;
-
-        // Actualizamos solamente el campo modificado.
-        setFormData((datosActuales) => ({
-            ...datosActuales,
-
-            // Los checkbox usan true/false.
-            // Los demás campos usan el texto ingresado.
-            [name]: type === "checkbox" ? checked : value,
-        }));
+    const handleUsernameChange = (e) => {
+        setUsername(e.target.value);
+        setUsuarioLdap(null);
+        setError("");
     };
 
     /**
-     * Maneja el envío del formulario.
+     * Busca el usuario en el Directorio Activo a través del backend.
+     */
+    const handleBuscar = async () => {
+        const valor = username.trim();
+        setError("");
+        setUsuarioLdap(null);
+
+        // Validaciones básicas antes de llamar a la API.
+        if (valor.length < 3) {
+            setError("Escribe al menos 3 caracteres del username LDAP.");
+            return;
+        }
+
+        if (!/^[A-Za-z0-9._-]+$/.test(valor)) {
+            setError(
+                "El username solo puede tener letras, números, punto, guion y guion bajo."
+            );
+            return;
+        }
+
+        setBuscando(true);
+
+        try {
+            const respuesta = await buscarUsuarioLdap(valor);
+
+            // El backend responde { message, data: { username, nombre, correo } }.
+            setUsuarioLdap(respuesta.data.data);
+        } catch (err) {
+            console.error("Error al buscar usuario LDAP:", err);
+
+            setError(
+                err.response?.data?.message ||
+                "No se pudo consultar el Directorio Activo. Intenta de nuevo."
+            );
+        } finally {
+            setBuscando(false);
+        }
+    };
+
+    /**
+     * Enter en el campo username ejecuta la búsqueda en vez de enviar el formulario.
+     */
+    const handleUsernameKeyDown = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+
+            if (!buscando) {
+                handleBuscar();
+            }
+        }
+    };
+
+    /**
+     * Envía los datos al componente padre.
      */
     const handleSubmit = async (e) => {
         // Evitamos que el navegador recargue la página.
         e.preventDefault();
-
-        // Indicamos que se está enviando para bloquear botones.
-        setEnviando(true);
-
-        // Limpiamos el error local antes de validar.
         setError("");
 
+        // Al crear es obligatorio haber encontrado al usuario en el LDAP.
+        if (esCrear && !usuarioLdap) {
+            setError("Primero busca un usuario del Directorio Activo.");
+            return;
+        }
+
+        setEnviando(true);
+
         try {
-            // En modo creación, una contraseña local es obligatoria.
-            if (modo === "crear" && !formData.password) {
-                throw new Error(
-                    "La contraseña es obligatoria para crear un usuario."
-                );
-            }
-
-            if(!formData.password && formData.password_confirmation){
-                throw new Error("Escribe tambien la nueva contraseña");
-            }
-
-            if(formData.password && formData.password !== formData.password_confirmation){
-                throw new Error("Las contraseñas no coinciden.");
-            }
-
-            // Copiamos los datos antes de ajustar el payload.
-            const datosAEnviar = { ...formData };
-
-            /**
-             * Si editamos un usuario LDAP, el frontend solamente envía
-             * rol y activo. Los demás campos son propiedad del AD.
-             */
-            if (esUsuarioLdap) {
+            if (esCrear) {
+                // Solo enviamos lo que decide el admin.
+                // Nombre y correo los vuelve a consultar el backend.
                 await onSubmit({
-                    // Rol administrativo local.
-                    rol: formData.rol,
-
-                    // Estado local de acceso a la aplicación.
-                    activo: formData.activo,
+                    username: usuarioLdap.username,
+                    rol,
+                    activo,
                 });
-
-                // Terminamos para evitar enviar campos locales más adelante.
-                return;
+            } else {
+                // Editar: únicamente rol y acceso.
+                await onSubmit({ rol, activo });
             }
-
-            /**
-             * En edición de usuarios locales, si la contraseña queda vacía,
-             * la eliminamos del payload para conservar el hash actual.
-             */
-            if (modo === "editar" && !datosAEnviar.password) {
-                delete datosAEnviar.password;
-                delete datosAEnviar.password_confirmation;
-            }
-
-            // Enviamos datos al componente padre.
-            await onSubmit(datosAEnviar);
         } catch (err) {
-            // Registramos el error técnico para depuración.
             console.error("Error al guardar usuario:", err);
 
-            // Extraemos los posibles errores de validación de Laravel.
+            // Primer mensaje de validación de Laravel, si existe.
             const erroresValidacion = err.response?.data?.errors;
-
-            // Tomamos el primer mensaje de validación disponible.
             const primerError = erroresValidacion
                 ? Object.values(erroresValidacion).flat()[0]
                 : null;
 
-            // Mostramos el mensaje más específico posible.
             setError(
                 primerError ||
                 err.response?.data?.message ||
@@ -283,35 +185,48 @@ function UsuarioFormModal({
         }
     };
 
-    /**
-     * Si el modal no está abierto, no renderizamos su estructura.
-     */
+    // Si el modal no está abierto, no renderizamos su estructura.
     if (!isOpen) {
         return null;
     }
 
+    // Datos de identidad que se muestran en solo lectura:
+    // al crear vienen de la búsqueda; al editar, del usuario seleccionado.
+    const identidad = esCrear
+        ? usuarioLdap
+            ? {
+                username: usuarioLdap.username,
+                nombre: usuarioLdap.nombre,
+                correo: usuarioLdap.correo,
+            }
+            : null
+        : {
+            username: usuarioInicial?.username,
+            nombre: usuarioInicial?.name,
+            correo: usuarioInicial?.email,
+        };
+
+    // Rol y acceso se habilitan solo cuando ya hay un usuario identificado.
+    const puedeEditarPermisos = Boolean(identidad);
+
     return (
-        // Estructura principal del modal Bootstrap.
+        // Estructura principal del modal con fondo oscuro propio.
         <div
             className="modal fade show d-block"
             tabIndex="-1"
-            ref={modalRef}
             style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
         >
             {/* Contenedor centrado verticalmente. */}
             <div className="modal-dialog modal-dialog-centered">
-                {/* Contenido blanco del modal. */}
                 <div className="modal-content">
-                    {/* Encabezado del modal. */}
+                    {/* Encabezado: el título cambia según el modo. */}
                     <div className="modal-header">
-                        {/* Título que cambia según el modo. */}
                         <h5 className="modal-title">
-                            {modo === "crear"
-                                ? "Crear usuario"
-                                : "Editar usuario"}
+                            {esCrear
+                                ? "Agregar usuario del Directorio Activo"
+                                : "Editar acceso del usuario"}
                         </h5>
 
-                        {/* Botón para cerrar el modal. */}
                         <button
                             type="button"
                             className="btn-close"
@@ -321,156 +236,108 @@ function UsuarioFormModal({
                         ></button>
                     </div>
 
-                    {/* Formulario del usuario. */}
                     <form onSubmit={handleSubmit}>
-                        {/* Cuerpo principal del formulario. */}
                         <div className="modal-body">
-                            {/* Aviso visible cuando se edita un usuario LDAP. */}
-                            {esUsuarioLdap && (
+                            {/* Aviso informativo sobre qué se puede cambiar. */}
+                            {!esCrear && (
                                 <div className="alert alert-info py-2">
                                     <i className="bi bi-building me-2"></i>
-                                    Este usuario se autentica mediante LDAP.
-                                    Solo puedes cambiar su rol y estado de acceso.
+                                    Estos datos los administra el Directorio Activo.
+                                    Solo puedes cambiar el rol y el acceso.
                                 </div>
                             )}
 
-                            {/* Campo nombre completo. */}
-                            <div className="mb-3">
-                                <label htmlFor="name" className="form-label">
-                                    Nombre completo
-                                </label>
-
-                                <input
-                                    type="text"
-                                    id="name"
-                                    name="name"
-                                    className="form-control"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    required
-                                    autoFocus={!esUsuarioLdap}
-                                    disabled={esUsuarioLdap || enviando}
-                                />
-                            </div>
-
-                            {/* Campo username. */}
-                            <div className="mb-3">
-                                <label
-                                    htmlFor="username"
-                                    className="form-label"
-                                >
-                                    Usuario de acceso
-                                </label>
-
-                                <input
-                                    type="text"
-                                    id="username"
-                                    name="username"
-                                    className="form-control"
-                                    value={formData.username}
-                                    onChange={handleChange}
-                                    required
-                                    minLength={3}
-                                    maxLength={100}
-                                    pattern="[A-Za-z0-9._-]+"
-                                    autoComplete="username"
-                                    disabled={esUsuarioLdap || enviando}
-                                />
-
-                                <small className="text-muted">
-                                    Usa letras, números, punto, guion o guion bajo.
-                                </small>
-                            </div>
-
-                            {/* Campo correo electrónico. */}
-                            <div className="mb-3">
-                                <label htmlFor="email" className="form-label">
-                                    Correo electrónico
-                                </label>
-
-                                <input
-                                    type="email"
-                                    id="email"
-                                    name="email"
-                                    className="form-control"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    required
-                                    autoComplete="email"
-                                    disabled={esUsuarioLdap || enviando}
-                                />
-                            </div>
-
-                            {/* La contraseña solo se maneja en usuarios locales. */}
-                            {!esUsuarioLdap && (
+                            {/* Buscador: solo al crear. */}
+                            {esCrear && (
                                 <div className="mb-3">
                                     <label
-                                        htmlFor="password"
+                                        htmlFor="ldapUsername"
                                         className="form-label"
                                     >
-                                        {modo === "crear"
-                                            ? "Contraseña"
-                                            : "Nueva contraseña (opcional)"}
+                                        Username del Directorio Activo
                                     </label>
 
-                                    <input
-                                        type="password"
-                                        id="password"
-                                        name="password"
-                                        className="form-control"
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                        required={modo === "crear"}
-                                        minLength={8}
-                                        autoComplete={
-                                            modo === "crear"
-                                                ? "new-password"
-                                                : "new-password"
-                                        }
-                                        disabled={enviando}
-                                    />
-                                    <label
-                                        htmlFor="password_confirmation"
-                                        className="form-label"
-                                    >
-                                        Confirmar contraseña
-                                    </label>
+                                    <div className="input-group">
+                                        <input
+                                            type="text"
+                                            id="ldapUsername"
+                                            className="form-control"
+                                            placeholder="Ej: jperez"
+                                            value={username}
+                                            onChange={handleUsernameChange}
+                                            onKeyDown={handleUsernameKeyDown}
+                                            disabled={buscando || enviando}
+                                            autoComplete="off"
+                                            autoFocus
+                                        />
 
-                                    <input
-                                        type="password"
-                                        id="password_confirmation"
-                                        name="password_confirmation"
-                                        className={`form-control ${
-                                            formData.password_confirmation &&
-                                            formData.password !== formData.password_confirmation
-                                            ? "is-invalid"
-                                            : ""
-                                        }`}
-                                        value={formData.password_confirmation}
-                                        onChange={handleChange}
-                                        required={modo === "crear"|| formData.password !== ""}
-                                        minLength={8}
-                                        autoComplete="new-password"
-                                        disabled={enviando}
-                                    />
-                                    {/*Mensaje visual si no coinciden*/}
-                                    {FormData.password_confirmation &&
-                                        formData.password !== formData.password_confirmation && (
-                                            <div className="invalid-feedback">
-                                                Las contraseñas no coinciden.
-                                            </div>
-                                    )}
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-primary"
+                                            onClick={handleBuscar}
+                                            disabled={
+                                                buscando ||
+                                                enviando ||
+                                                !username.trim()
+                                            }
+                                        >
+                                            {buscando
+                                                ? "Buscando..."
+                                                : "Buscar en LDAP"}
+                                        </button>
+                                    </div>
 
-                                    {/* Ayuda solo durante edición de usuarios locales. */}
-                                    {modo === "editar" && (
-                                        <small className="text-muted">
-                                            Déjala vacía para conservar la contraseña actual.
-                                        </small>
-                                    )}
+                                    <small className="text-muted">
+                                        Nombre y correo se traen del directorio y no se pueden modificar.
+                                    </small>
                                 </div>
                             )}
 
-                            {/* Campo rol. Está disponible para LDAP y Local. */}
+                            {/* Datos de identidad en solo lectura. */}
+                            {identidad && (
+                                <div className="border rounded p-3 mb-3 bg-light">
+                                    <div className="mb-2">
+                                        <label className="form-label mb-0 small text-muted">
+                                            Nombre completo
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            value={identidad.nombre || ""}
+                                            readOnly
+                                            disabled
+                                        />
+                                    </div>
+
+                                    <div className="mb-2">
+                                        <label className="form-label mb-0 small text-muted">
+                                            Usuario de acceso
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            value={identidad.username || ""}
+                                            readOnly
+                                            disabled
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="form-label mb-0 small text-muted">
+                                            Correo electrónico
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            value={identidad.correo || ""}
+                                            readOnly
+                                            disabled
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Campo rol. */}
                             <div className="mb-3">
                                 <label htmlFor="rol" className="form-label">
                                     Rol
@@ -478,12 +345,10 @@ function UsuarioFormModal({
 
                                 <select
                                     id="rol"
-                                    name="rol"
                                     className="form-select"
-                                    value={formData.rol}
-                                    onChange={handleChange}
-                                    required
-                                    disabled={enviando}
+                                    value={rol}
+                                    onChange={(e) => setRol(e.target.value)}
+                                    disabled={!puedeEditarPermisos || enviando}
                                 >
                                     {/* Viewer solo consulta productos. */}
                                     <option value="viewer">
@@ -502,16 +367,15 @@ function UsuarioFormModal({
                                 </select>
                             </div>
 
-                            {/* Control para habilitar o bloquear acceso. */}
+                            {/* Control para dar o quitar acceso a la plataforma. */}
                             <div className="form-check mb-3">
                                 <input
                                     type="checkbox"
                                     id="activo"
-                                    name="activo"
                                     className="form-check-input"
-                                    checked={formData.activo}
-                                    onChange={handleChange}
-                                    disabled={enviando}
+                                    checked={activo}
+                                    onChange={(e) => setActivo(e.target.checked)}
+                                    disabled={!puedeEditarPermisos || enviando}
                                 />
 
                                 <label
@@ -522,7 +386,7 @@ function UsuarioFormModal({
                                 </label>
                             </div>
 
-                            {/* Mostramos errores locales del formulario. */}
+                            {/* Errores locales del formulario. */}
                             {error && (
                                 <div
                                     className="alert alert-danger py-2 mb-0"
@@ -535,7 +399,6 @@ function UsuarioFormModal({
 
                         {/* Pie del modal con botones de acción. */}
                         <div className="modal-footer">
-                            {/* Botón para cancelar y cerrar. */}
                             <button
                                 type="button"
                                 className="btn btn-secondary"
@@ -545,13 +408,18 @@ function UsuarioFormModal({
                                 Cancelar
                             </button>
 
-                            {/* Botón para enviar formulario. */}
                             <button
                                 type="submit"
                                 className="btn btn-primary"
-                                disabled={enviando}
+                                disabled={
+                                    enviando || buscando || !puedeEditarPermisos
+                                }
                             >
-                                {enviando ? "Guardando..." : "Guardar"}
+                                {enviando
+                                    ? "Guardando..."
+                                    : esCrear
+                                        ? "Crear usuario"
+                                        : "Guardar"}
                             </button>
                         </div>
                     </form>

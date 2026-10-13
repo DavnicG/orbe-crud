@@ -25,7 +25,6 @@ class StoreUsuarioRequest extends FormRequest{
                 'min:3',
                 'max:100',
                 'regex:/^[A-Za-z0-9._-]+$/',
-                'unique:users,username',
             ],
             'rol' => 'required|in:admin,editor,viewer',
             'activo' => 'boolean',
