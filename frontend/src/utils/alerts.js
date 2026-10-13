@@ -44,7 +44,7 @@ export const mostrarError = (mensaje) => {
 export const confirmarEliminacion = async (nombreProducto) => {
     const resultado = await Swal.fire({
         icon:'warning',
-        title:'¿Eliminar producto?',
+        title:'¿Eliminar?',
         text:`Se eliminara: ${nombreProducto}`,
         showCancelButton: true,
         confirmButtonText: 'Si, eliminar',

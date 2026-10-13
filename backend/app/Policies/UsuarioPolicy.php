@@ -46,7 +46,10 @@ class UsuarioPolicy
     }
 
     /**
-     * Determina si el usuario puede eliminar usuarios.
+     * Determina si el usuario puede eliminar usuarios del aplicativo.
+     *
+     * Esta acción ejecuta soft delete en la base de datos local.
+     * No modifica ni elimina al usuario en Active Directory.
      */
     public function delete(User $currentUser, User $targetUser): bool
     {
@@ -55,12 +58,12 @@ class UsuarioPolicy
             return false;
         }
 
-        //Los usuarios LDAP se gestionan en el directorio activo
-        if($targetUser ->tipo_autenticacion === 'ldap'){
+        // Ningún usuario puede eliminar su propio acceso.
+        if($currentUser -> id === $targetUser -> id){
             return false;
         }
 
-        //Un admin no se puede eliminar a si mismo
-        return $currentUser->id !== $targetUser->id;
+        // Un admin sí puede eliminar usuarios LDAP del aplicativo.
+        return true;
     }
 }

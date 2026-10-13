@@ -15,11 +15,14 @@ class UsuarioResource extends JsonResource{
             'username' =>$this->username,
             'name' => $this->name,
             'email' => $this->email,
-            'tipo_autenticacion' =>$this->tipo_autenticacion,
             'rol' => $this->rol,
-            'activo' => $this->activo ?? true,
+            'activo' => (bool) $this->activo,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+
+            // Es null para usuarios activos.
+            // Solo será útil en consultas futuras que incluyan withTrashed().
+            'deleted_at' => $this->deleted_at,
 
         ];
     }

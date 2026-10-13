@@ -4,30 +4,35 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UsuarioController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\LdapUsuarioController;
 
 // ===== RUTAS PÚBLICAS =====
 // Estas no requieren token.
 
 // Permite iniciar sesión y obtener un token. MAX 5 INTENTOS
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-//Permite verificar codgio de acceso para usuarios locales
-Route::post('/two-factor/verify', [AuthController::class, 'verifyTwoFactor']);
-//Permite solicitar el reenvio del codigo de acceso para usuarios locales
-Route::post('/two-factor/resend', [AuthController::class, 'resendTwoFactor']);
+// Login: máximo 5 intentos por minuto desde la misma IP.
+Route::post('/login', [AuthController::class, 'login'])
+    ->middleware('throttle:5,1');
+// Verificar código: máximo 5 intentos por minuto por IP.
+Route::post('/two-factor/verify', [AuthController::class, 'verifyTwoFactor'])
+    ->middleware('throttle:5,1');
+// Reenviar código: máximo 3 solicitudes por minuto por IP.
+Route::post('/two-factor/resend', [AuthController::class, 'resendTwoFactor'])
+    ->middleware('throttle:3,1');
 
 // ===== RUTAS PROTEGIDAS =====
-// Estas sí requieren un token válido enviado en Authorization: Bearer ...
-Route::middleware('auth:sanctum')->group(function () {
+// Estas rutas requieren un token Sanctum válido.
+Route::middleware('auth:sanctum', 'active.user')->group(function () {
 
-    // Permite cerrar sesión eliminando el token actual.
+    // Cerrar la sesión actual.
     Route::post('/logout', [AuthController::class, 'logout']);
-    //Obtiene los datos del usuario autenticado
+    // Obtener los datos del usuario autenticado.
     Route::get('/me', [AuthController::class, 'me']);
-
-    //Protegemos todo el CRUD de productos
+    // CRUD de productos.
     Route::apiResource('productos', ProductoController::class);
-
-    //Mantenimiento de usuario
+    // Administración de usuarios.
     Route::apiResource('usuarios', UsuarioController::class);
+    //Buscar un usuario para creacion
+    Route::get('/usuarios/ldap/{username}', [LdapUsuarioController::class, 'buscar'])
+    ->middleware('throttle:10,1');
 });

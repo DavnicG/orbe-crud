@@ -44,6 +44,10 @@ return [
         'host'    => env('LDAP_HOST'),
         'port'    => env('LDAP_PORT', 389),
         'base_dn' => env('LDAP_BASE_DN'),
+
+         // Cuenta temporal para búsquedas del administrador.
+        'service_username' => env('LDAP_SERVICE_USERNAME'),
+        'service_password' => env('LDAP_SERVICE_PASSWORD'),
     ],
 
 ];

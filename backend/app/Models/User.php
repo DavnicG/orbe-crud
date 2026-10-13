@@ -11,6 +11,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 // Este trait Sanctum lo necesita para poder crear y administrar tokens de acceso.
 use Laravel\Sanctum\HasApiTokens;
+// Este trait permite usar soft deletes (borrado suave).
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Producto;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -19,15 +21,15 @@ class User extends Authenticatable
     /* Aquí agregamos los traits que tendrá el modelo.
     HasApiTokens: permite crear tokens tipo Bearer para la API.
     HasFactory: permite usar factories.
-    Notifiable: permite notificaciones.*/
-    use HasApiTokens, HasFactory, Notifiable;
+    Notifiable: permite notificaciones.
+    SoftDeletes: permite borrado suave con deleted_at.*/
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     /** Estos campos se pueden llenar de forma masiva. */
     protected $fillable = [
         'name',
         'username',
         'email',
-        'password',
         'rol',
         'activo',
         'tipo_autenticacion',
@@ -42,16 +44,18 @@ class User extends Authenticatable
         'remember_token'
     ];
 
-    /**
+/**
      * Aquí definimos conversiones automáticas de tipos.
      * - email_verified_at se convierte automáticamente a fecha.
      * - password se almacena hasheada automáticamente.
+     * - activo se convierte automáticamente a booleano.
      */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'activo' => 'boolean',
         ];
     }
 
