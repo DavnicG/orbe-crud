@@ -3,73 +3,44 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\VerifyTwoFactorRequest;
+use App\Http\Requests\ResendTwoFactorRequest;
 use App\Models\User;
+use App\Models\TwoFactorCode;
+use App\Services\TwoFactorService;
+use App\Notifications\TwoFactorCodeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use LdapRecord\Auth\BindException;
 use LdapRecord\Connection;
+use LdapRecord\Auth\BindException;
 use LdapRecord\LdapRecordException;
-use App\Http\Requests\VerifyTwoFactorRequest;
-use App\Http\Requests\ResendTwoFactorRequest;
-use App\Services\TwoFactorService;
 
 class AuthController extends Controller
 {
     /**
-     * Iniciar sesión.
+     * Iniciar sesión con credenciales LDAP.
      *
-     * 1. Si el username pertenece a un usuario LOCAL, validamos con Hash::check.
-     * 2. En cualquier otro caso, validamos contra LDAP (Active Directory).
-     * 3. En ambos casos se bloquea a los usuarios inactivos antes de crear el token.
+     * Solo usuarios LDAP. No se crea automáticamente.
+     * Si el usuario no existe en la BD, se responde 403.
+     * Si el usuario existe pero está inactivo, se responde 403.
+     * Si las credenciales son válidas, se envía 2FA.
      */
     public function login(LoginRequest $request): JsonResponse
     {
         $datosValidos = $request->validated();
         $username = $datosValidos['username'];
 
-        // ===== Camino 1: usuario local =====
-        $usuarioLocal = User::where('username', $username)
-            ->where('tipo_autenticacion', 'local')
-            ->first();
-
-        if ($usuarioLocal) {
-            if (! Hash::check($datosValidos['password'], $usuarioLocal->password)) {
-                return response()->json([
-                    'message' => 'Credenciales incorrectas',
-                ], 401);
-            }
-
-            // Rechazamos usuarios inactivos antes de crear un código o enviar correo.
-            if (! $usuarioLocal->activo) {
-                return response()->json([
-                    'message' => 'Tu usuario está desactivado. Contacta al administrador.',
-                ], 403);
-            }
-
-            // Generamos el desafío y enviamos el código al correo del usuario.
-            $codigoDosFactores = app(TwoFactorService::class)->generarCodigo(
-                $usuarioLocal,
-                $request->ip(),
-                $request->userAgent()
-            );
-
-            // Todavía NO se entrega token Sanctum.
-            return response()->json([
-                'message' => 'Te enviamos un código de verificación a tu correo electrónico.',
-                'requires_two_factor' => true,
-                'challenge_token' => $codigoDosFactores->challenge_token,
-            ], 202);
-        }
-
-        // ===== Camino 2: usuario LDAP =====
+        // ===== Bind LDAP =====
         $connection = new Connection([
-            'hosts'    => [config('services.ldap.host')],
-            'port'     => config('services.ldap.port', 389),
-            'base_dn'  => config('services.ldap.base_dn'),
+            'hosts' => [config('services.ldap.host')],
+            'port' => config('services.ldap.port', 389),
+            'base_dn' => config('services.ldap.base_dn'),
             'username' => 'CORP\\' . $username,
             'password' => $datosValidos['password'],
+            'timeout' => 5, // Timeout de 5 segundos para evitar cuelgues
         ]);
 
         try {
@@ -85,6 +56,7 @@ class AuthController extends Controller
             ], 503);
         }
 
+        // Consultamos los datos del usuario en el LDAP
         $ldapUser = $connection->query()->where('sAMAccountName', '=', $username)->first();
 
         if (! $ldapUser) {
@@ -100,40 +72,67 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Buscamos primero por username; si no, por correo SOLO entre usuarios LDAP
-        // (cubre usuarios antiguos creados antes de existir el campo username).
-        $usuario = User::where('username', $username)->first()
-            ?? User::where('email', $correoLdap)
+        // ===== Verificar que el usuario exista en la BD =====
+        // Buscamos por username (prioridad) o por correo entre usuarios LDAP
+        $usuario = User::withTrashed()
+            ->where('username', $username)
+            ->first()
+            ?? User::withTrashed()
+                ->where('email', $correoLdap)
                 ->where('tipo_autenticacion', 'ldap')
                 ->first();
 
+        // Si el usuario no existe en la BD, no tiene acceso al aplicativo
         if (! $usuario) {
-            // Evita que un correo de AD se asocie a una cuenta local existente.
-            if (User::where('email', $correoLdap)->exists()) {
-                return response()->json([
-                    'message' => 'El correo de tu cuenta ya está asociado a otro usuario. Contacta al administrador.',
-                ], 409);
-            }
-
-            $usuario = User::create([
-                'name'               => $nombreLdap,
-                'username'           => $username,
-                'email'              => $correoLdap,
-                'password'           => Str::random(32), // no se usa; LDAP valida
-                'tipo_autenticacion' => 'ldap',          // explícito, sin depender del default
-                'rol'                => 'viewer',        // rol por defecto, se administra localmente
-                'activo'             => true,
-            ]);
-        } else {
-            // Completamos datos de usuarios LDAP antiguos y mantenemos el nombre sincronizado.
-            $usuario->forceFill([
-                'username'           => $usuario->username ?? $username,
-                'tipo_autenticacion' => 'ldap',
-                'name'               => $nombreLdap,
-            ])->save();
+            return response()->json([
+                'message' => 'No tienes acceso al aplicativo. Contacta al administrador.',
+            ], 403);
         }
 
-        return $this->responderConToken($usuario);
+        // Si el usuario fue eliminado (soft delete), no puede entrar
+        if ($usuario->trashed()) {
+            return response()->json([
+                'message' => 'Tu usuario está eliminado. Contacta al administrador.',
+            ], 403);
+        }
+
+        // ===== Verificar que el usuario esté activo =====
+        if (! $usuario->activo) {
+            return response()->json([
+                'message' => 'Tu usuario está desactivado. Contacta al administrador.',
+            ], 403);
+        }
+
+        // ===== Sincronizar datos del LDAP (nombre y correo) =====
+        // Solo actualizamos si algo cambió, para no escribir en cada login
+        $cambios = [];
+
+        if ($usuario->name !== $nombreLdap) {
+            $cambios['name'] = $nombreLdap;
+        }
+
+        if ($usuario->email !== $correoLdap) {
+            $cambios['email'] = $correoLdap;
+        }
+
+        if (! empty($cambios)) {
+            $usuario->forceFill($cambios)->save();
+        }
+
+        // ===== Generar 2FA =====
+        // Se envía el código al correo sincronizado
+        $codigoDosFactores = app(TwoFactorService::class)->generarCodigo(
+            $usuario,
+            $request->ip(),
+            $request->userAgent()
+        );
+
+        // Todavía NO se entrega token Sanctum.
+        return response()->json([
+            'message' => 'Te enviamos un código de verificación a tu correo electrónico.',
+            'requires_two_factor' => true,
+            'challenge_token' => $codigoDosFactores->challenge_token,
+        ], 202);
     }
 
     /**
@@ -150,17 +149,18 @@ class AuthController extends Controller
         $token = $usuario->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message'    => 'Inicio de sesión correcto',
-            'user'       => $usuario,
-            'token'      => $token,
+            'message' => 'Inicio de sesión correcto',
+            'user' => $usuario,
+            'token' => $token,
             'token_type' => 'Bearer',
         ]);
     }
 
     /**
-     * Verifica un código 2FA de un usuario local.
+     * Verifica un código 2FA.
      *
      * Solo después de una verificación exitosa se crea el token Sanctum.
+     * Ahora acepta usuarios LDAP (se quitó la condición de local).
      */
     public function verifyTwoFactor(
         VerifyTwoFactorRequest $request,
@@ -180,11 +180,8 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Protección adicional: el 2FA solo debe emitir tokens a usuarios locales activos.
-        if (
-            $usuario->tipo_autenticacion !== 'local'
-            || ! $usuario->activo
-        ) {
+        // Protección adicional: el usuario debe estar activo
+        if (! $usuario->activo) {
             return response()->json([
                 'message' => 'No fue posible completar la verificación de acceso.',
             ], 403);
@@ -202,6 +199,8 @@ class AuthController extends Controller
 
     /**
      * Genera un código nuevo para un desafío 2FA aún vigente.
+     *
+     * Ahora verifica que el usuario siga activo antes de reenviar.
      */
     public function resendTwoFactor(
         ResendTwoFactorRequest $request,
@@ -222,11 +221,19 @@ class AuthController extends Controller
             ], 422);
         }
 
+        // Verificamos que el usuario siga activo
+        if (! $nuevoCodigo->user->activo) {
+            return response()->json([
+                'message' => 'Tu usuario está desactivado. Contacta al administrador.',
+            ], 403);
+        }
+
         return response()->json([
             'message' => 'Te enviamos un nuevo código de verificación a tu correo.',
             'challenge_token' => $nuevoCodigo->challenge_token,
         ]);
     }
+
     /** Cerrar sesión: elimina solo el token actual. */
     public function logout(Request $request): JsonResponse
     {

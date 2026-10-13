@@ -6,10 +6,8 @@ use App\Models\User;
 use App\Http\Requests\StoreUsuarioRequest;
 use App\Http\Requests\UpdateUsuarioRequest;
 use App\Http\Resources\UsuarioResource;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Illuminate\Http\JsonResponse;
+use App\Services\LdapUserLookupService;
 
 class UsuarioController extends Controller
 {
@@ -32,29 +30,75 @@ class UsuarioController extends Controller
         return new UsuarioResource($usuario);
     }
     /**
-     * Crear un nuevo usuario manual(No LDAP)
+     * Crear un nuevo usuario
      */
-    Public function store(StoreUsuarioRequest $request){
-        $this -> authorize('create', User::class);
+    public function store(
+        StoreUsuarioRequest $request,
+        LdapUserLookupService $ldap
+    ) {
+        // La policy asegura que solamente un admin pueda crear usuarios.
+        $this->authorize('create', User::class);
 
-        $datosValidados = $request -> validated();
+        // Solo contiene username, rol y activo.
+        $datosValidados = $request->validated();
 
-    // Encriptamos la contraseña antes de guardarla en la base de datos.
-    // Nunca guardamos contraseñas locales en texto plano.
-    $datosValidados['password'] = Hash::make($datosValidados['password']);
+        // Consultamos el Directorio Activo desde el backend.
+        $datosLdap = $ldap->buscarUsuario($datosValidados['username']);
 
-    // Forzamos que los usuarios creados desde el panel administrativo
-    // sean usuarios de autenticación local.
-    $datosValidados['tipo_autenticacion'] = 'local';
+        // El usuario debe existir en LDAP y tener correo para recibir el 2FA.
+        if (! $datosLdap) {
+            return response()->json([
+                'message' => 'No se encontró un usuario válido con ese username o no tiene correo en el Directorio Activo.',
+            ], 422);
+        }
 
-    // Creamos el usuario con los datos validados y controlados por el backend.
-    $usuario = User::create($datosValidados);
+        // Incluimos usuarios con soft delete para poder restaurarlos
+        // en lugar de crear registros duplicados.
+        $usuarioExistente = User::withTrashed()
+            ->where('username', $datosLdap['username'])
+            ->first();
 
-        return response() ->json([
-            'message' => 'Usuario creado correctamente',
+        // Si ya existe y no está eliminado, no permitimos duplicados.
+        if ($usuarioExistente && ! $usuarioExistente->trashed()) {
+            return response()->json([
+                'message' => 'Este usuario ya está registrado en el aplicativo.',
+                'errors' => [
+                    'username' => ['El username LDAP ya está registrado.'],
+                ],
+            ], 422);
+        }
+
+        // Datos procedentes de fuentes confiables:
+        // LDAP proporciona identidad; el administrador asigna rol y acceso.
+        $datosUsuario = [
+            'name' => $datosLdap['nombre'],
+            'username' => $datosLdap['username'],
+            'email' => $datosLdap['correo'],
+            'rol' => $datosValidados['rol'],
+            'activo' => $datosValidados['activo'],
+            'tipo_autenticacion' => 'ldap',
+        ];
+
+        // Si existía pero fue eliminado, lo restauramos y actualizamos.
+        if ($usuarioExistente) {
+            $usuarioExistente->restore();
+            $usuarioExistente->update($datosUsuario);
+
+            return response()->json([
+                'message' => 'Usuario restaurado y actualizado correctamente.',
+                'data' => new UsuarioResource($usuarioExistente->fresh()),
+            ], 200);
+        }
+
+        // Si nunca estuvo registrado, lo creamos como usuario LDAP.
+        $usuario = User::create($datosUsuario);
+
+        return response()->json([
+            'message' => 'Usuario creado correctamente.',
             'data' => new UsuarioResource($usuario),
-        ],201);
+        ], 201);
     }
+
     /**
      * Campos que pertenecen al LDAP y no se pueden modificar
      */
@@ -64,60 +108,59 @@ class UsuarioController extends Controller
      */
     public function update(UpdateUsuarioRequest $request, User $usuario){
 
+        // Solo los administradores pueden actualizar usuarios.
         $this -> authorize('update', $usuario);
 
+        // La petición ya contiene solamente rol y/o activo.
         $datosValidados = $request -> validated();
 
-        if($usuario->tipo_autenticacion === 'ldap'){
-            $errores = [];
+        // Un admin no puede quitarse a sí mismo el rol de administrador.
+        if (
+            $request->user()->id === $usuario->id
+            && isset($datosValidados['rol'])
+            && $datosValidados['rol'] !== 'admin'
+        ) {
+            return response()->json([
+                'message' => 'No puedes quitarte tu propio rol de administrador.',
+            ], 422);
+        }
 
-            foreach (self::camposProtegidos as $campo){
-                if(! array_key_exists($campo, $datosValidados)){
-                    continue;
-                }
+        // Un admin no puede desactivar su propio acceso.
+            if (
+            $request->user()->id === $usuario->id
+            && array_key_exists('activo', $datosValidados)
+            && ! $datosValidados['activo']
+        ) {
+            return response()->json([
+                'message' => 'No puedes desactivar tu propio acceso.',
+            ], 422);
+        }
 
-                //La contraseña no aplica a LDAP, el resto solo se rechaza si cambia
-                $intentaCambiar = $campo === 'password'
-                    ? filled($datosValidados[$campo])
-                    : $datosValidados[$campo] !== $usuario -> {$campo};
+        // Si se intenta quitar el rol admin o desactivar al último admin activo, el sistema debe impedirlo.
+        $quitaAdmin = isset($datosValidados['rol'])
+            && $usuario->rol === 'admin'
+            && $datosValidados['rol'] !== 'admin';
 
-                if($intentaCambiar){
-                    $errores[$campo] = ['Este datos lo administra el Directorio Activo y no se puede modificar'];
-                }
-            }
+        $desactivaAdmin = array_key_exists('activo', $datosValidados)
+            && $usuario->rol === 'admin'
+            && ! $datosValidados['activo'];
 
-            if (! empty($errores)){
-                return response() ->json([
-                    'message' => 'No se pueden modificar los datos de un usuario LDAP',
-                    'errors' => $errores,
+        if ($quitaAdmin || $desactivaAdmin) {
+            $adminsActivos = User::where('rol', 'admin')
+                ->where('activo', true)
+                ->count();
+
+            if ($adminsActivos <= 1) {
+                return response()->json([
+                    'message' => 'No puedes quitar el acceso ni el rol al último administrador activo.',
                 ], 422);
             }
-
-            //Solo se conservan los campos admnistrables desde la aplicacion
-            $datosValidados = array_intersect_key($datosValidados, array_flip(['rol', 'activo']));
         }
 
-        //Un admin no puede quitarse su propio acceso ni su rol.
-        if($request -> user()->id === $usuario->id){
-            if(($datosValidados['activo'] ?? true) === false
-                || (isset($datosValidados['rol']) && $datosValidados['rol'] !== 'admin')){
-                    return response() ->json([
-                        'message' => 'No puedes quitarte tu propio acceso o rol de administrador',
-                    ], 422);
-                }
-        }
-
-        //Si se envia una contraseña(Solo local), la encriptamos, si no se conserva la actual
-        if(! empty($datosValidados['password'])){
-            $datosValidados['password'] = Hash::make($datosValidados['password']);
-        } else {
-            //No se envia contraseña, mantenemos la existente
-            unset($datosValidados['password']);
-        }
-
+        // Aplicamos los cambios permitidos.
         $usuario -> update($datosValidados);
 
-        // Si se desactivó el acceso, cerramos todas sus sesiones activas.
+        // Si se desactivó la cuenta, revocamos todos sus tokens actuales.
         if (array_key_exists('activo', $datosValidados) && ! $datosValidados['activo']) {
             $usuario->tokens()->delete();
         }
@@ -132,13 +175,29 @@ class UsuarioController extends Controller
      * Eliminar usuario
      */
     public function destroy(User $usuario){
-        //La policy rechaza LDAP y la auto-Eliminacion
-        $this ->authorize('delete', $usuario);
-        $usuario->tokens()->delete();
-        $usuario-> delete();
+        // La policy valida que sea admin y evita la autoeliminación.
+        $this->authorize('delete', $usuario);
+         // Si se intenta eliminar al último admin activo, bloqueamos la operación.
+        if ($usuario->rol === 'admin' && $usuario->activo) {
+            $adminsActivos = User::where('rol', 'admin')
+                ->where('activo', true)
+                ->count();
 
-        return response() ->json([
-            'message' => 'Usuario eliminado correctamente',
+            if ($adminsActivos <= 1) {
+                return response()->json([
+                    'message' => 'No puedes eliminar al último administrador activo.',
+                ], 422);
+            }
+        }
+
+        // Cerramos todas las sesiones activas antes de eliminar el usuario.
+        $usuario->tokens()->delete();
+
+        // Soft delete: llena deleted_at, no borra físicamente la fila.
+        $usuario->delete();
+
+        return response()->json([
+            'message' => 'Usuario eliminado correctamente del aplicativo.',
         ]);
     }
 }

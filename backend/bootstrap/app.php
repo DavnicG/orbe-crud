@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureUserIsActive;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,10 +14,22 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Alias utilizado por las rutas protegidas.
+        $middleware->alias([
+            'active.user' => EnsureUserIsActive::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
-        );
+        // Convierte errores de autorización de rutas API a una respuesta JSON en español.
+        $exceptions->render(function (
+            \Illuminate\Auth\Access\AuthorizationException $exception,
+            \Illuminate\Http\Request $request
+        ) {
+            // Solo modificamos respuestas que vayan a la API.
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'message' => 'No tienes permiso para realizar esta acción.',
+                ], 403);
+            }
+        });
     })->create();

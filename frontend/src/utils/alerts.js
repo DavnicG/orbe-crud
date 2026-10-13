@@ -41,11 +41,14 @@ export const mostrarError = (mensaje) => {
 };
 
 //Funcion para confirmar borrado
-export const confirmarEliminacion = async (nombreProducto) => {
+export const confirmarEliminacion = async (nombre, detalle = '') => {
     const resultado = await Swal.fire({
         icon:'warning',
-        title:'¿Eliminar producto?',
-        text:`Se eliminara: ${nombreProducto}`,
+        title:'¿Eliminar?',
+        // Si hay detalle lo mostramos debajo del nombre
+        html: detalle
+            ? `Se eliminará: <b>${nombre}</b><br><small>${detalle}</small>`
+            : `Se eliminara: ${nombre}`,
         showCancelButton: true,
         confirmButtonText: 'Si, eliminar',
         cancelButtonText: 'Cancelar',
@@ -53,5 +56,25 @@ export const confirmarEliminacion = async (nombreProducto) => {
         cancelButtonColor: '#6c757d', // Gris neutro
     });
 
+    return resultado.isConfirmed;
+};
+
+// Confirmacion generica para acciones no destructivas
+// (por ejemplo quitar o dar acceso a un usuario).
+export const confirmarAccion = async ({
+    titulo,
+    mensaje,
+    textoConfirmar = 'Si, continuar',
+}) => {
+    const resultado = await Swal.fire({
+        icon: 'question',
+        tittle: titulo,
+        text: mensaje,
+        showCancelButton: true,
+        confirmButtonText: textoConfirmar,
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#0d6efd', // Azul de Bootstrap
+        cancelButtonColor: '#6c757d',
+    }); 
     return resultado.isConfirmed;
 };
